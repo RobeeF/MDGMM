@@ -212,36 +212,31 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         print('p(y^C) = ', np.log(py_c).sum())
         print('p(y^D) = ', np.log(py_d).sum())
         
-        
-        ############# Continue debugging here !!!!! ############################
-        pz_s_c = fz_s(z_s_c, mu_s_c, sigma_s_c) # Need to compute these quantities
+        pz_s_c = fz_s(z_s_c, mu_s_c, sigma_s_c) 
 
         #=====================================================================
         # Compute p(z^{(l)}| s, y). Equation (5) of the paper
         #=====================================================================
-        # A HARMONISER POUR LES DERNIERES COUCHEEEEES 
-        #### Be careful not the same length
         
         pz2_z1s_d = fz2_z1s(t(pzl1_ys_d, (1, 0, 2)), z2_z1s_d, chsi_d, rho_d, S_1L['d'])
         pz_ys_d = fz_ys(t(pzl1_ys_d, (1, 0, 2)), pz2_z1s_d)
-        
-        
+          
         pz2_z1s_c = fz2_z1s([], z2_z1s_c, chsi_c, rho_c, S_1L['c'])
         pz_ys_c = fz_ys([], pz2_z1s_c)
                 
         # Junction layer computations
         # Compute p(zC |s)
         py_zs_c = fy_zs_c(pz_ys_c, py_s_c, pz_s_c)
-        
-        # Compute p(zt | yC, yD, sC, SD)
-        
+ 
+        # Compute p(zt | yC, yD, sC, SD)        
         pzt_yCyDs = fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, L)
 
         #=====================================================================
         # Compute MFA expectations
         #=====================================================================
         
-        # Discrete head. Last element of Ez_ys_d is useless
+        # Discrete head. 
+        # Pas checkée mais rien ne diffère..?
         Ez_ys_d, E_z1z2T_ys_d, E_z2z2T_ys_d, EeeT_ys_d = \
             E_step_DGMM_d(zl1_ys_d, H_d, z_s_d, zc_s_d, z2_z1s_d, pz_ys_d,\
                         pz2_z1s_d, S_1L['d'], L['d'])
@@ -254,7 +249,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         # Restart from here !!!!                    
         # Junction layers
         Ez_ys_t, E_z1z2T_ys_t, E_z2z2T_ys_t, EeeT_ys_t = \
-            E_step_DGMM_t([], H_c[bar_L['c']:], \
+            E_step_DGMM_t(H_c[bar_L['c']:], \
             z_s_c[bar_L['c']:], zc_s_c[bar_L['c']:], z2_z1s_c[bar_L['c']:],\
                 pzt_yCyDs, pz2_z1s_c[bar_L['c']:], S_1L, L, k_1L)  
               
@@ -267,6 +262,10 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         #=======================================================
         # Compute DGMM Parameters 
         #=======================================================
+            
+        #print('New wc', w_s_c.reshape(*k_1L['c'], order = 'C').sum((0, 1)))    
+        #print('New wd', w_s_d.reshape(*k_1L['d'], order = 'C').sum((0)))   
+                   
 
         # Discrete head
         w_s_d = np.mean(ps_y_d, axis = 0)      
@@ -277,14 +276,13 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         eta_d[:bar_L['d']] = eta_d_barL
         H_d[:bar_L['d']] = H_d_barL
         psi_d[:bar_L['d']] = psi_d_barL
-        
-        H_d = diagonal_cond(H_d, psi_d)
-        
+                
         # Continuous head
         w_s_c = np.mean(ps_y_c, axis = 0)  
         eta_c_barL, H_c_barL, psi_c_barL = M_step_DGMM(Ez_ys_c, E_z1z2T_ys_c, E_z2z2T_ys_c, \
                                         EeeT_ys_c, ps_y_c, H_c, k_1L['c'][:-1],\
                                             L_1L['c'] + 1, r_1L['c'])
+
         eta_c[:bar_L['c']] = eta_c_barL
         H_c[:bar_L['c']] = H_c_barL
         psi_c[:bar_L['c']] = psi_c_barL            
@@ -303,9 +301,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         H_c[bar_L['c']:] = H_t
         psi_c[bar_L['c']:] = psi_t            
         
-                   
+        H_d = diagonal_cond(H_d, psi_d)                   
         H_c = diagonal_cond(H_c, psi_c)
-        H_d = diagonal_cond(H_d, psi_d)
 
         #=======================================================
         # Identifiability conditions
@@ -320,12 +317,12 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         
         ## Continuous head
         mu_s_c, sigma_s_c = compute_path_params(eta_c, H_c, psi_c)        
-        Ez1_c, AT_c = compute_z_moments(w_s_c, mu_s_c, sigma_s_c)
-        eta_c, H_c, psi_c = identifiable_estim_DDGMM(eta_c, H_c, psi_c, Ez1_c, AT_c)
+        #Ez1_c, AT_c = compute_z_moments(w_s_c, mu_s_c, sigma_s_c)
+        #eta_c, H_c, psi_c = identifiable_estim_DDGMM(eta_c, H_c, psi_c, Ez1_c, AT_c)
         
     
         del(Ez1_d)
-        del(Ez1_c)
+        #del(Ez1_c)
         #=======================================================
         # Compute GLLVM Parameters
         #=======================================================

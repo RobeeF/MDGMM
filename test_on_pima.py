@@ -35,21 +35,15 @@ from autograd.numpy.random import uniform
 #===========================================#
 # Importing data
 #===========================================#
-os.chdir('C:/Users/rfuchs/Documents/GitHub/MDGMM/datasets')
+os.chdir('C:/Users/rfuchs/Documents/These/Stats/mixed_dgmm/datasets')
 
-heart = pd.read_csv('heart_statlog/heart.csv', sep = ' ', header = None)
-y = heart.iloc[:,:-1]
-labels = heart.iloc[:,-1]
-labels = np.where(labels == 1, 0, labels)
-labels = np.where(labels == 2, 1, labels)
+pima = pd.read_csv('pima/pima_indians.csv', sep = ',')
+y = pima.iloc[:,:-1]
+labels = pima.iloc[:,-1]
 
 y = y.infer_objects()
 numobs = len(y)
 
-# Too many zeros for this "continuous variable". Add a little noise to avoid 
-# the correlation matrix for each group to blow up
-uniform_draws = uniform(0, 1E-12, numobs)
-y.iloc[:, 9] = np.where(y[9] == 0, uniform_draws, y[9])
 
 n_clusters = len(np.unique(labels))
 p = y.shape[1]
@@ -57,39 +51,30 @@ p = y.shape[1]
 #===========================================#
 # Formating the data
 #===========================================#
-var_distrib = np.array(['continuous', 'bernoulli', 'categorical', 'continuous',\
-                        'continuous', 'bernoulli', 'categorical', 'continuous',\
-                        'bernoulli', 'continuous', 'ordinal', 'ordinal',\
-                        'categorical']) # Last one is ordinal for me (but real
-                        # real in the data description)
-    
+var_distrib = np.array(['ordinal', 'continuous', 'continuous', 'continuous',\
+                        'continuous', 'continuous', 'continuous', 'continuous']) 
+ 
 # Ordinal data already encoded
  
 y_categ_non_enc = deepcopy(y)
 vd_categ_non_enc = deepcopy(var_distrib)
 
-# Encode categorical datas
-y, var_distrib = gen_categ_as_bin_dataset(y, var_distrib)
+# No categ data
+# No binary data 
 
-# Encode binary data
-le = LabelEncoder()
-for col_idx, colname in enumerate(y.columns):
-    if var_distrib[col_idx] == 'bernoulli': 
-        y[colname] = le.fit_transform(y[colname])
-    
 enc = OneHotEncoder(sparse = False, drop = 'first')
 labels_oh = enc.fit_transform(np.array(labels).reshape(-1,1)).flatten()
 
 nj, nj_bin, nj_ord = compute_nj(y, var_distrib)
 y_np = y.values
 nb_cont = np.sum(var_distrib == 'continuous')
-
+     
 #===========================================#
 # Running the algorithm
 #===========================================# 
 
-r = {'c': [nb_cont, 3], 'd': [4, 3], 't': [2, 1]}
-k = {'c': [2], 'd': [2, 2], 't': [n_clusters,  1]}
+r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
+k = {'c': [2], 'd': [2], 't': [n_clusters,  1]}
 
 seed = 1
 init_seed = 2
@@ -107,11 +92,11 @@ print(confusion_matrix(labels_oh, pred))
 #init = prince_init
 #y = y_np
 
-import warnings
-warnings.simplefilter('ignore')
+#import warnings
+#warnings.simplefilter('ignore')
 
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps, maxstep, seed)
-m, pred = misc(labels_oh, out['classes'], True) 
+m, pred = misc(labels_oh, classes, True) 
 print(m)
 print(confusion_matrix(labels_oh, pred))
 
