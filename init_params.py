@@ -59,6 +59,13 @@ def add_missing_paths(k, init_paths, init_nb_paths):
 
     return existing_paths, nb_existing_paths
 
+'''
+,, 
+
+zl = zt[l]
+kl = k['t'][l]
+rl_nextl = r['t'][l:]
+'''
 
 def get_MFA_params(zl, kl, rl_nextl):
     ''' Determine clusters with a GMM and then adjust a Factor Model over each cluster
@@ -117,6 +124,8 @@ def get_MFA_params(zl, kl, rl_nextl):
                             and look to repeated values")
                             
         psi[j] = np.diag(fa.get_uniquenesses())
+        #psi[j] = fa.get_uniquenesses()
+
         H[j] = fa.loadings_
         z_nextl[indices] = fa.transform(zl[indices])
         eta[j] = np.mean(zl[indices], axis = 0)
@@ -124,6 +133,13 @@ def get_MFA_params(zl, kl, rl_nextl):
     params = {'H': H, 'psi': psi, 'z_nextl': z_nextl, 'eta': eta, 'classes': s}
     return params
 
+
+'''
+zh_first = z1D
+kh = k['d']
+rh = r['d']
+Lh = L['d']
+'''
 
 def init_head(zh_first, kh, rh, numobs, Lh):
     zh = [zh_first]
@@ -166,7 +182,6 @@ def init_junction_layer(r, k, zc, zd):
         s_h = gmm_h.fit_predict(last_zh)
         paths_pred[h] = s_h
         
-        # Need while loop ?
         clusters_found, count = np.unique(s_h, return_counts = True)
         
         assert len(clusters_found) == last_kh
@@ -174,6 +189,8 @@ def init_junction_layer(r, k, zc, zd):
         eta_h = []
         H_h = []
         psi_h = []
+        
+        # Fill the parameters belonging to each group
     
         for j in range(last_kh):
             indices = (s_h == j)
@@ -182,6 +199,7 @@ def init_junction_layer(r, k, zc, zd):
             centered_zh = last_zh[indices] - eta_hj
             
             # For each group fit a PLS to find Lambda and Psi
+            # Choose r['t] - 1 but could take less 
             pls = PLSRegression(n_components = r['t'][0] - 1)
             pls.fit(zt_first[indices], centered_zh)
             
@@ -269,11 +287,12 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     #=======================================================
     init = {}
 
-    # Initialise the both heads
+    # Initialise both heads quantities
     eta_d, H_d, psi_d, zd, paths_pred_d = init_head(z1D, k['d'], r['d'], numobs, L['d'])
     eta_c, H_c, psi_c, zc, paths_pred_c = init_head(yc, k['c'], r['c'], numobs, L['c'])
       
-    # Initialisation of the common layer
+    # Initialisation of the common layer. The coefficients are those between the last
+    # Layer of both heads and the first junction layer
     eta_h_last, H_h_last, psi_h_last, paths_pred_h_last, zt_first = init_junction_layer(r, k, zc, zd)
     eta_d.append(eta_h_last['d'])
     H_d.append(H_h_last['d'])
@@ -287,7 +306,7 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     paths_pred_c.append(paths_pred_h_last['c'])
     zt = [zt_first]  
     
-    # Initialisation of the following common layers (info is duplicated for now)
+    # Initialisation of the following common layers 
     for l in range(L['t']):
         params = get_MFA_params(zt[l], k['t'][l], r['t'][l:]) 
         eta_c.append(params['eta'][..., n_axis])
@@ -328,14 +347,20 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     # Enforcing identifiability constraints over the first layer
     #=============================================================
     
+    H_c = diagonal_cond(H_c, psi_c) # Hack to remove
+    H_d = diagonal_cond(H_d, psi_d)
+
+    # Recompute the mu and psi
     mu_s_c, sigma_s_c = compute_path_params(eta_c, H_c, psi_c)
     mu_s_d, sigma_s_d = compute_path_params(eta_d, H_d, psi_d)
-   
+    
+    # Hack to remove    
+    Ez1_c, AT_c = compute_z_moments(w_s_c, mu_s_c, sigma_s_c)        
+    eta_c, H_c, psi_c = identifiable_estim_DDGMM(eta_c, H_c, psi_c, Ez1_c, AT_c)
+    
     Ez1_d, AT_d = compute_z_moments(w_s_d, mu_s_d, sigma_s_d)
-    H_d = diagonal_cond(H_d, psi_d)
     eta_d, H_d, psi_d = identifiable_estim_DDGMM(eta_d, H_d, psi_d, Ez1_d, AT_d)
-        
-    H_c = diagonal_cond(H_c, psi_c)
+
         
     init['c'] = {}
     init['c']['eta']  = eta_c     

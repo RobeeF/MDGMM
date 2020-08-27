@@ -88,8 +88,8 @@ nb_cont = np.sum(var_distrib == 'continuous')
 # Running the algorithm
 #===========================================# 
 
-r = {'c': [nb_cont, 3], 'd': [4, 3], 't': [2, 1]}
-k = {'c': [2], 'd': [2, 2], 't': [n_clusters,  1]}
+r = {'c': [nb_cont], 'd': [4], 't': [3, 2, 1]}
+k = {'c': [1], 'd': [2], 't': [n_clusters, 2,  1]}
 
 seed = 1
 init_seed = 2
@@ -104,13 +104,20 @@ m, pred = misc(labels_oh, prince_init['classes'], True)
 print(m)
 print(confusion_matrix(labels_oh, pred))
 
-#init = prince_init
-#y = y_np
 
+'''
+init = prince_init
+y = y_np
+perform_selec = True
+'''
+
+'''
 import warnings
 warnings.simplefilter('ignore')
+'''
 
-out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps, maxstep, seed)
+out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
+            maxstep, seed, perform_selec = False)
 m, pred = misc(labels_oh, out['classes'], True) 
 print(m)
 print(confusion_matrix(labels_oh, pred))
@@ -124,11 +131,11 @@ import numpy as np
 colors = ['red','green']
 
 fig = plt.figure(figsize=(8,8))
-plt.scatter(out["z"][:, 0], out["z"][:, 1]  ,c=labels_oh,\
+plt.scatter(out["z"][:, 0], out["z"][:, 1]  ,c=pred,\
             cmap=matplotlib.colors.ListedColormap(colors))
 
 cb = plt.colorbar()
-loc = np.arange(0,max(labels_oh),max(labels_oh)/float(len(colors)))
+loc = np.arange(0,max(labels_oh), max(labels_oh)/float(len(colors)))
 cb.set_ticks(loc)
 cb.set_ticklabels(colors)
 

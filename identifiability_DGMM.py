@@ -33,6 +33,10 @@ def compute_z_moments(w_s, mu_s, sigma_s):
     return Ez1, AT
 
 
+'''
+H_old = H_c
+psi_old = psi_c
+'''
 def diagonal_cond(H_old, psi_old):
     ''' Ensure that Lambda^T Psi^{-1} Lambda is diagonal
     H_old (list of nb_layers elements of shape (K_l x r_l-1, r_l)): The previous

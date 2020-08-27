@@ -73,8 +73,8 @@ nb_cont = np.sum(var_distrib == 'continuous')
 # Running the algorithm
 #===========================================# 
 
-r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
-k = {'c': [2], 'd': [2], 't': [n_clusters,  1]}
+r = {'c': [nb_cont], 'd': [4], 't': [3, 2, 1]}
+k = {'c': [1], 'd': [2], 't': [3, n_clusters,  1]}
 
 seed = 1
 init_seed = 2
@@ -89,14 +89,17 @@ m, pred = misc(labels_oh, prince_init['classes'], True)
 print(m)
 print(confusion_matrix(labels_oh, pred))
 
-#init = prince_init
-#y = y_np
+'''
+init = prince_init
+y = y_np
+perform_selec = True
+'''
 
 #import warnings
 #warnings.simplefilter('ignore')
 
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps, maxstep, seed)
-m, pred = misc(labels_oh, classes, True) 
+m, pred = misc(labels_oh, out['classes'], True) 
 print(m)
 print(confusion_matrix(labels_oh, pred))
 

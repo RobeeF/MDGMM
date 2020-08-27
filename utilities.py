@@ -147,3 +147,55 @@ def compute_rho(eta, H, psi, mu_s, sigma_s, z_c, chsi):
                                     + (pinv(sigma_next_l) @ mu_next_l)[n_axis])
                 
     return rho
+
+
+##########################################################################################################
+#################################### DGMM Utils ##########################################################
+##########################################################################################################
+
+import matplotlib
+import matplotlib.pyplot as plt 
+
+
+def plot_2d(zl, classes):
+    ''' Plot the 2d representation of the data '''
+    colors = ['red','green'] # For a 2 classes classification
+    fig = plt.figure(figsize=(16, 9))
+    ax = plt.axes() 
+    
+    ax.scatter(zl[:, 0], zl[:, 1] , c = classes,\
+                    cmap=matplotlib.colors.ListedColormap(colors))
+        
+    plt.title("2D Latent space representation of the data") 
+    ax.set_xlabel('Latent dimension 1', fontweight ='bold')  
+    ax.set_ylabel('Latent dimension 2', fontweight ='bold')  
+                
+    plt.show()
+
+def plot_3d(zl, classes):
+    ''' Plot the 3d latent space representation of the data '''
+    colors = ['red','green'] # For a 2 classes classification
+
+    fig = plt.figure(figsize = (16, 9)) 
+    ax = plt.axes(projection ="3d") 
+        
+    # Add x, y gridlines  
+    ax.grid(b = True, color ='grey',  
+            linestyle ='-.', linewidth = 0.3,  
+            alpha = 0.2)  
+      
+    # Creating plot 
+    sctt = ax.scatter3D(zl[:,0], zl[:,1], zl[:,2], 
+                        alpha = 0.8, 
+                        c = classes,  
+                        cmap = matplotlib.colors.ListedColormap(colors)) 
+      
+    plt.title("3D Latent space representation of the data") 
+    ax.set_xlabel('Latent dimension 1', fontweight ='bold')  
+    ax.set_ylabel('Latent dimension 2', fontweight ='bold')  
+    ax.set_zlabel('Latent dimension 3', fontweight ='bold') 
+    #fig.colorbar(sctt, ax = ax, shrink = 0.5, aspect = 5) 
+      
+    # show plot 
+    plt.show() 
+    

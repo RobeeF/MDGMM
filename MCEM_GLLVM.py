@@ -109,8 +109,14 @@ def E_step_GLLVM(zl1_s, mu_l1_s, sigma_l1_s, w_s, py_zl1):
     pzl1_s = np.zeros((M0, 1, S0))
         
     for s in range(S0): # Have to retake the function for DGMM to parallelize or use apply along axis
-        pzl1_s[:,:, s] = mvnorm.pdf(zl1_s[:,:,s], mean = mu_l1_s[s].flatten(order = 'C'), \
-                                           cov = sigma_l1_s[s])[..., n_axis]            
+        try:
+            pzl1_s[:,:, s] = mvnorm.pdf(zl1_s[:,:,s], mean = mu_l1_s[s].flatten(order = 'C'), \
+                                               cov = sigma_l1_s[s], allow_singular = True)[..., n_axis]   
+        except:
+            print('The bad cov matrix is :')
+            print(sigma_l1_s[s])
+            raise RuntimeError('Singular matrix')
+            
     # Compute p(y | s_i = 1)
     pzl1_s_norm = pzl1_s / np.sum(pzl1_s, axis = 0, keepdims = True) 
     py_s = (pzl1_s_norm * py_zl1).sum(axis = 0)
