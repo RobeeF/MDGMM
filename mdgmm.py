@@ -25,11 +25,7 @@ from MCEM_GLLVM import draw_zl1_ys, fy_zl1, E_step_GLLVM, \
 from hyperparameters_selection import M_growth, look_for_simpler_network, \
     is_min_architecture_reached
 from utilities import compute_path_params, compute_chsi, compute_rho, \
-    plot_2d, plot_3d
-
-import matplotlib
-import matplotlib.pyplot as plt
-import pandas as pd
+    plot_2d, plot_3d, check_inputs
 
 import autograd.numpy as np
 from autograd.numpy import transpose as t
@@ -60,6 +56,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     returns (dict): The predicted classes, the likelihood through the EM steps
                     and a continuous representation of the data
     '''
+    
+    check_inputs(k, r)
 
     prev_lik = - 1E12
     best_lik = -1E12
@@ -153,7 +151,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     print('H_t', np.abs(H_c[-1]).mean())
     print('Psi_t', np.abs(psi_c[-1]).mean())
     '''
-                         
+                       
+        
     # Add assertion about k and r size here
     # And about their format
                      

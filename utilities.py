@@ -11,10 +11,10 @@ from autograd.numpy.linalg import pinv
 from autograd.numpy import newaxis as n_axis
 from autograd.numpy import transpose as t
 
+
 ##########################################################################################################
 #################################### DGMM Utils ##########################################################
 ##########################################################################################################
-
 
 def repeat_tile(x, reps, tiles):
     ''' Repeat then tile a quantity to mimic the former code logic
@@ -198,4 +198,49 @@ def plot_3d(zl, classes):
       
     # show plot 
     plt.show() 
+
+##########################################################################################################
+################################# General purposes #######################################################
+##########################################################################################################
+    
+def check_inputs(k, r):
+    
+    # Check k and r are dict
+    if not(isinstance(k, dict)):
+        raise TypeError('k must be a dict')
+    
+    if not(isinstance(r, dict)):
+        raise TypeError('r must be a dict')
+            
+    # Check keys == ['c', 'd', 't']
+    if len(set(k.keys()) - set(['c', 'd', 't'])) != 0:
+        raise ValueError('The keys of k have to be [\'c\', \'d\', \'t\']')
+        
+    if len(set(r.keys()) - set(['c', 'd', 't'])) != 0:
+        raise ValueError('The keys of r have to be [\'c\', \'d\', \'t\']') 
+    # Check if exist useless keys ...
+
+    # Check k and r have the same length    
+    for h, kh in k.items():
+        if len(kh) != len(r[h]):
+            raise ValueError('r and k must have the same lengths for each head and tail') 
+
+    # Check valid k and r values model
+    # ! Implement isnumeric
+    for h, kh in k.items():
+        if not(np.all([isnumeric(el) for el in kh])):
+            raise ValueError('k values must be numeric') 
+        if not(np.all([isnumeric(el) for el in r[h]])):
+            raise ValueError('r values must be numeric') 
+                       
+    # Check identifiable model
+    for h, kh in k.items():
+        if len(kh) != len(r[h]):
+            raise ValueError('r and k must have the same lengths for each head and tail') 
+            
+    
+                    
+
+            
+    
     

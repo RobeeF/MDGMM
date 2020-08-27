@@ -420,12 +420,22 @@ def fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, M, S_1L, L):
         #====================================================
         # Reshaping
         #====================================================
-        
+        '''
         py_zs_c_l = py_zs_c[L['c'] + l].reshape(numobs, M['c'][l + 1], \
                                     S_1L['c'][0]// S_1L['t'][0], S_1L['t'][0],\
                                         order = 'C') 
         
         pz_ys_d_l = pz_ys_d[L['d'] + l].reshape(numobs, M['d'][l + 1], \
+                                    S_1L['d'][0]// S_1L['t'][0], S_1L['t'][0],\
+                                        order = 'C')
+        '''
+            
+            
+        py_zs_c_l = py_zs_c[L['c'] + l].reshape(numobs, M['c'][L['c'] + l + 1], \
+                                    S_1L['c'][0]// S_1L['t'][0], S_1L['t'][0],\
+                                        order = 'C') 
+        
+        pz_ys_d_l = pz_ys_d[L['d'] + l].reshape(numobs, M['d'][L['d'] + l], \
                                     S_1L['d'][0]// S_1L['t'][0], S_1L['t'][0],\
                                         order = 'C')
 

@@ -74,7 +74,7 @@ nb_cont = np.sum(var_distrib == 'continuous')
 #===========================================# 
 
 r = {'c': [nb_cont], 'd': [4], 't': [3, 2, 1]}
-k = {'c': [1], 'd': [2], 't': [3, n_clusters,  1]}
+k = {'c': [1], 'd': [2], 't': [2, n_clusters,  1]}
 
 seed = 1
 init_seed = 2
