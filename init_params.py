@@ -37,7 +37,7 @@ from autograd.numpy import newaxis as n_axis
 from autograd.numpy.linalg import LinAlgError
 
 import warnings 
-warnings.simplefilter('error')
+warnings.simplefilter('default')
 
 ####################################################################################
 ################### MCA GMM + Logistic Regressions initialisation ##################
@@ -53,7 +53,7 @@ def add_missing_paths(k, init_paths, init_nb_paths):
         
     for idx, path in enumerate(all_possible_paths):
         if not(path in existing_paths):
-            print('The following path has been added', idx, path)
+            #print('The following path has been added', idx, path)
             existing_paths.insert(idx, path)
             nb_existing_paths = np.insert(nb_existing_paths, idx, 0, axis = 0)
 

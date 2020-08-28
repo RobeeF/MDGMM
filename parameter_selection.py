@@ -293,37 +293,6 @@ def k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer):
     
     return components_to_keep
 
-def k_select_old(w_s, k, new_L, clustering_layer):
-    ''' Automatic choice of the number of components by layer '''
-    
-    L = len(k)
-    n_clusters = k[clustering_layer]
-    
-    # If the clustering layer (cl) is deleted, define the last existing layer as cl 
-    last_layer_idx = new_L - 1
-    if last_layer_idx  < clustering_layer:
-        clustering_layer = last_layer_idx
-    
-    components_to_keep = []
-    w = w_s.reshape(*k, order = 'C')
-            
-    for l in range(new_L):
-                
-        PROBA_THRESHOLD = 1 / (k[l] * 4)
-
-        other_layers_indices = tuple(set(range(L)) - set([l]))
-        components_proba = w.sum(other_layers_indices)
-        #print(components_proba)
-        
-        if l == clustering_layer:
-            biggest_lik_comp = np.sort(components_proba.argsort()[::-1][:n_clusters])
-            components_to_keep.append(biggest_lik_comp)
-
-        else:
-            components_to_keep.append(np.where(components_proba > PROBA_THRESHOLD)[0])
-    
-    return components_to_keep
-
 
 def check_if_selection(r_to_keep, r, k_to_keep, k, L, new_Lt):
     ''' Check if the architecture has to be changed '''

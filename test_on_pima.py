@@ -18,6 +18,10 @@ from sklearn.preprocessing import OneHotEncoder
 
 import pandas as pd
 
+from gower import gower_matrix
+from sklearn.metrics import silhouette_score
+
+
 from mdgmm import MDGMM
 from init_params import dim_reduce_init
 from metrics import misc, cluster_purity
@@ -29,7 +33,7 @@ from autograd.numpy.random import uniform
 
 
 ###############################################################################
-###############         Heart    vizualisation          #######################
+###############         Pima    vizualisation          #######################
 ###############################################################################
 
 #===========================================#
@@ -69,6 +73,20 @@ nj, nj_bin, nj_ord = compute_nj(y, var_distrib)
 y_np = y.values
 nb_cont = np.sum(var_distrib == 'continuous')
      
+
+p_new = y.shape[1]
+
+# Feature category (cf)
+cf_non_enc = np.logical_or(vd_categ_non_enc == 'categorical', vd_categ_non_enc == 'bernoulli')
+
+# Non encoded version of the dataset:
+y_nenc_typed = y_categ_non_enc.astype(np.object)
+y_np_nenc = y_nenc_typed.values
+
+# Defining distances over the non encoded features
+dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc) 
+
+
 #===========================================#
 # Running the algorithm
 #===========================================# 
@@ -88,6 +106,7 @@ prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
 m, pred = misc(labels_oh, prince_init['classes'], True) 
 print(m)
 print(confusion_matrix(labels_oh, pred))
+print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
 
 '''
 init = prince_init
@@ -102,6 +121,7 @@ out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps, maxst
 m, pred = misc(labels_oh, out['classes'], True) 
 print(m)
 print(confusion_matrix(labels_oh, pred))
+print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
 
 # Plot the final groups
 
@@ -130,11 +150,10 @@ print(confusion_matrix(labels_oh, pred))
 
 
 #=========================================================================
-# Performance measure : Finding the best specification for init and DDGMM
+# Performance measure : Finding the best specification for init and MDGMM
 #=========================================================================
 
-res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/breast'
-
+res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/pima'
 
 # Init
 # Best one r = (2,1)
@@ -142,7 +161,7 @@ numobs = len(y)
 k = [n_clusters]
 
 nb_trials= 30
-mca_res = pd.DataFrame(columns = ['it_id', 'r', 'micro', 'macro', 'purity'])
+mca_mdgmm_res = pd.DataFrame(columns = ['it_id', 'r', 'micro', 'macro', 'purity'])
 
 for r1 in range(2, 9):
     print(r1)
@@ -159,16 +178,17 @@ for r1 in range(2, 9):
         #print(micro)
         #print(macro)
     
-        mca_res = mca_res.append({'it_id': i + 1, 'r': str(r), 'micro': micro, 'macro': macro, \
+        mca_mdgmm_res = mca_mdgmm_res.append({'it_id': i + 1, 'r': str(r),\
+                                              'micro': micro, 'macro': macro, \
                                         'purity': purity}, ignore_index=True)
        
 
-mca_res.groupby('r').mean()
-mca_res.groupby('r').std()
+mca_mdgmm_res.groupby('r').mean()
+mca_dgmm_res.groupby('r').std()
 
-mca_res.to_csv(res_folder + '/mca_res.csv')
+mca_mdgmm_res.to_csv(res_folder + '/mca_mdgmm_res.csv')
 
-# DDGMM. Thresholds use: 0.5 and 0.10
+# MDGMM. Thresholds use: 0.5 and 0.10
 r = np.array([5, 4, 2])
 numobs = len(y)
 k = [4, n_clusters]
@@ -177,13 +197,13 @@ it = 30
 maxstep = 100
 
 nb_trials= 30
-ddgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'purity'])
+mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'purity'])
 
 
 
 # First fing the best architecture 
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
-out = DDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps, maxstep, seed = None)
+out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps, maxstep, seed = None)
 
 r = out['best_r']
 numobs = len(y)
@@ -193,7 +213,7 @@ it = 30
 maxstep = 100
 
 nb_trials= 30
-ddgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'purity'])
+mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'purity'])
 
 for i in range(nb_trials):
 
@@ -202,7 +222,7 @@ for i in range(nb_trials):
     prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
 
     try:
-        out = DDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, M, it, eps, maxstep, seed = None)
+        out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, M, it, eps, maxstep, seed = None)
         m, pred = misc(labels_oh, out['classes'], True) 
         cm = confusion_matrix(labels_oh, pred)
         purity = cluster_purity(cm)
@@ -212,18 +232,18 @@ for i in range(nb_trials):
         print(micro)
         print(macro)
 
-        ddgmm_res = ddgmm_res.append({'it_id': i + 1, 'micro': micro, 'macro': macro, \
+        mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': micro, 'macro': macro, \
                                     'purity': purity}, ignore_index=True)
     except:
-        ddgmm_res = ddgmm_res.append({'it_id': i + 1, 'micro': np.nan, 'macro': np.nan, \
+        mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': np.nan, 'macro': np.nan, \
                                     'purity': np.nan}, ignore_index=True)
 
 
 
-ddgmm_res.mean()
-ddgmm_res.std()
+mdgmm_res.mean()
+mdgmm_res.std()
 
-ddgmm_res.to_csv(res_folder + '/ddgmm_res.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_res.csv')
 
 
 #=======================================================================
@@ -238,20 +258,11 @@ from minisom import MiniSom
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 
-# Feature category (cf)
-cf_non_enc = (vd_categ_non_enc != 'ordinal') & (vd_categ_non_enc != 'binomial')
-
-# Non encoded version of the dataset:
-y_nenc_typed = y_categ_non_enc.astype(np.object)
-y_np_nenc = y_nenc_typed.values
-
-# Defining distances over the non encoded features
-dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc) 
 
 # <nb_trials> tries for each specification
 nb_trials = 30
 
-res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/breast'
+res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/pima'
 
 
 #****************************

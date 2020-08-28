@@ -11,7 +11,7 @@ import autograd.numpy as np
 
 
 # Old one for tictactoe and breast cancer
-def M_growth(it_nb, r_1L, numobs):
+def M_growth__(it_nb, r_1L, numobs):
     #''' Function that controls the growth rate of M through the iterations
     #it_num (int): The current iteration number
     #r (list of int): The dimensions of each layer
@@ -27,7 +27,7 @@ def M_growth(it_nb, r_1L, numobs):
     return M
 
 # Old one for tictactoe and breast cancer
-def M_growth__(it_nb, r_1L, numobs):
+def M_growth(it_nb, r_1L, numobs):
     #''' Function that controls the growth rate of M through the iterations
     #it_num (int): The current iteration number
     #r (list of int): The dimensions of each layer
@@ -36,9 +36,9 @@ def M_growth__(it_nb, r_1L, numobs):
     #'''
 
     M = {}
-    M['c'] = ((35 / np.log(numobs)) * it_nb * np.sqrt(r_1L['c'])).astype(int)
+    M['c'] = ((40 / np.log(numobs)) * it_nb * np.sqrt(r_1L['c'])).astype(int)
     M['c'][0] = numobs
-    M['d'] = ((35 / np.log(numobs)) * it_nb * np.sqrt(r_1L['c'])).astype(int)
+    M['d'] = ((40 / np.log(numobs)) * it_nb * np.sqrt(r_1L['c'])).astype(int)
     
     return M
 

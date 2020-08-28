@@ -203,6 +203,14 @@ def plot_3d(zl, classes):
 ################################# General purposes #######################################################
 ##########################################################################################################
     
+
+def asnumeric(lst):
+    try:
+        lst = [int(el) for el in lst]
+    except:
+        raise ValueError('r  and k values must be numeric') 
+    return lst
+
 def check_inputs(k, r):
     
     # Check k and r are dict
@@ -213,32 +221,35 @@ def check_inputs(k, r):
         raise TypeError('r must be a dict')
             
     # Check keys == ['c', 'd', 't']
-    if len(set(k.keys()) - set(['c', 'd', 't'])) != 0:
+    if set(k.keys()) != set(['c', 'd', 't']):
         raise ValueError('The keys of k have to be [\'c\', \'d\', \'t\']')
         
-    if len(set(r.keys()) - set(['c', 'd', 't'])) != 0:
+    if set(r.keys()) != set(['c', 'd', 't']):
         raise ValueError('The keys of r have to be [\'c\', \'d\', \'t\']') 
-    # Check if exist useless keys ...
 
     # Check k and r have the same length    
-    for h, kh in k.items():
-        if len(kh) != len(r[h]):
+    for h in ['c', 'd', 't']:
+        if len(k[h]) != len(r[h]):
             raise ValueError('r and k must have the same lengths for each head and tail') 
 
     # Check valid k and r values model
     # ! Implement isnumeric
     for h, kh in k.items():
-        if not(np.all([isnumeric(el) for el in kh])):
-            raise ValueError('k values must be numeric') 
-        if not(np.all([isnumeric(el) for el in r[h]])):
-            raise ValueError('r values must be numeric') 
-                       
+        k[h] = asnumeric(kh)
+        r[h] =  asnumeric(r[h])
+        
+    # Check k['c'] is 1
+    if k['c'][0] != 1:
+        raise ValueError('The first continuous head layer are the data hence k[\'c\'] = 1')
+        
     # Check identifiable model
-    for h, kh in k.items():
-        if len(kh) != len(r[h]):
-            raise ValueError('r and k must have the same lengths for each head and tail') 
-            
-    
+    for h in ['c', 'd']:
+        r_1Lh =  r[h] + r['t']
+        are_dims_decreasing = np.all([r_1Lh[l] - r_1Lh[l + 1] > 0 \
+                                     for l in range(len(r_1Lh) - 1)])
+        if not(are_dims_decreasing):
+            raise ValueError('Dims must be decreasing from heads to tail !')
+        
                     
 
             

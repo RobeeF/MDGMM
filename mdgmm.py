@@ -59,10 +59,10 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     
     check_inputs(k, r)
 
-    prev_lik = - 1E12
-    best_lik = -1E12
+    prev_lik = - 1E15
+    best_lik = -1E15
     tol = 0.01
-    max_patience = 2
+    max_patience = 1
     patience = 0
     
     #====================================================
@@ -399,7 +399,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
             
             # To finish
             z_tail = [Ezst_y[l].sum(1) for l in range(L['t'] - 1)]
-            z = Ezst_y[clustering_layer].sum(1)
+            #z = Ezst_y[clustering_layer].sum(1)
              
             for l in range(L['t'] - 1):
                 zl = Ezst_y[l].sum(1)
@@ -428,13 +428,28 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
             patience += 1
             
         if ps_y_d.max() > 1:
-            print('ps_y_d > 1', ps_y_d.max())
+            raise RuntimeError('ps_y_d > 1', ps_y_d.max())
         if ps_y_c.max() > 1:
-            print('ps_y_c > 1', ps_y_c.max())  
+            raise RuntimeError('ps_y_c > 1', ps_y_c.max())  
         if pst_yCyD.max() > 1:
-            print('pst_yCyD > 1', pst_yCyD.max())
-
-
+            raise RuntimeError('pst_yCyD > 1', pst_yCyD.max())
+        if pzl1_ys_d.max() > 1:
+            raise RuntimeError('pzl1_ys_d > 1', pzl1_ys_d.max())
+        if pz_s_c[0].max() > 1:
+            raise RuntimeError('pz_s_c > 1', pz_s_c[0].max())
+        if pz2_z1s_c[0].max() > 1:
+            raise RuntimeError('pz2_z1s_c > 1', pz2_z1s_c[0].max()) 
+        if pz2_z1s_d[0].max() > 1:
+            raise RuntimeError('pz2_z1s_d > 1', pz2_z1s_d[0].max())
+        if pz2_z1s_t[0].max() > 1:
+            raise RuntimeError('pz2_z1s_t > 1', pz2_z1s_t[0].max()) 
+        if pz_ys_c[0].max() > 1:
+            raise RuntimeError('pz_ys_c > 1', pz_ys_c[0].max())  
+        if pz_ys_d[0].max() > 1:
+            raise RuntimeError('pz_ys_d > 1', pz_ys_d[0].max())                           
+        if pzt_yCyDs[0].max() > 1:
+            raise RuntimeError('pzt_yCyDs > 1', pzt_yCyDs[0].max())
+ 
         '''
         py_zl1_d pzl1_ys_d ps_y_d py_d py_s_d pz_s_c pz2_z1s_d pz_ys_d pz2_z1s_c pz_ys_c pz2_z1s_t
         py_zs_c pzt_yCyDs pst_yCyD
@@ -449,7 +464,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         
         print('is not min spe', is_not_min_specif)
         print('Look for simpler network', look_for_simpler_network(it_num))
-        
+        print('perform_selec', perform_selec)
         
         if look_for_simpler_network(it_num) & perform_selec & is_not_min_specif:
             
