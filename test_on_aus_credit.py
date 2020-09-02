@@ -13,7 +13,6 @@ from copy import deepcopy
 
 from sklearn.metrics import precision_score
 from sklearn.metrics import confusion_matrix
-from sklearn.preprocessing import LabelEncoder 
 from sklearn.preprocessing import OneHotEncoder
 
 from gower import gower_matrix
@@ -123,6 +122,22 @@ print(m)
 print(confusion_matrix(labels_oh, pred))
 print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
 
+#===========================================#
+# Try auto mode
+#===========================================# 
+
+r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
+k = {'c': [1], 'd': [2], 't': [5, 1]}
+
+n_clusters = 'auto'
+prince_init = dim_reduce_init(y, 'auto', k, r, nj, var_distrib, seed = None)
+out = MDGMM(y_np, 'auto', r, k, prince_init, var_distrib, nj, it, eps,\
+            maxstep, seed, perform_selec = True)
+print('Silhouette', silhouette_score(dm, out['classes'], metric = 'precomputed'))
+
+#===========================================#
+# Final plotting
+#===========================================# 
 
 # Plot the final groups
 
@@ -142,61 +157,96 @@ cb.set_ticks(loc)
 cb.set_ticklabels(colors)
 
 
-# FAMD init
-famd_init = dim_reduce_init(y_categ_non_enc.infer_objects(), n_clusters,\
-                    k, r, nj, vd_categ_non_enc, use_famd = True, seed = None)
-m, pred = misc(labels_oh, famd_init['classes'], True) 
-print(m)
-print(confusion_matrix(labels_oh, pred))
-
-
 #=========================================================================
 # Performance measure : Finding the best specification for init and DDGMM
 #=========================================================================
 
-
 res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/aus_credit'
 
-
 # Init
-# Best one r = (2,1)
+# Best one r = ?
+
+# Generate possible r list
+max_tail_layer = 3
+max_c_layer = 2
+max_d_layer = 2
+
+r_list = []
+
+# Que les architecture minimale pour l'instant
+for tl in range(2, max_tail_layer + 1):
+    for cl in range(1, max_c_layer + 1):
+        for dl in range(1, max_d_layer + 1):
+
+            rc = list(range(1, nb_cont + 1))
+            rc.reverse()
+    
+            rd = list(range(1, dl + tl + 1))
+            rd.reverse()
+    
+            r_cdt =  {'c': rc[:cl], 'd': rd[:dl], 't': rd[dl:]}
+            r_list.append(r_cdt)
+            
+
+# Generate possible k list
+# Que les architecture minimale pour l'instant
+k_list = []
+for tl in range(2, max_tail_layer + 1):
+    for cl in range(1, max_c_layer + 1):
+        for dl in range(1, max_d_layer + 1):
+
+            kc = np.random.randint(2, 5, cl)
+            kd = np.random.randint(2, 5, dl)
+            kt = np.random.randint(2, 5, tl)
+
+            # Last kt must be 1 and first kc also   
+            # Define the first layer as clustering layer
+            kc[0] = 1
+            kt[0] = n_clusters
+            kt[-1] = 1
+            
+
+            k_cdt =  {'c': kc, 'd': kd, 't': kt}
+            k_list.append(k_cdt)
+    
+
 numobs = len(y)
-k = [n_clusters]
-
 nb_trials= 30
-mca_mdgmm_res = pd.DataFrame(columns = ['it_id', 'r', 'micro', 'macro', 'purity'])
+mca_mdgmm_res = pd.DataFrame(columns = ['it_id', 'k', 'r', 'micro', 'macro',\
+                                        'silhouette'])
 
-for r1 in range(2, 9):
-    print(r1)
-    r = np.array([r1, 1])
+for r, k in zip(r_list, k_list): 
+    print(r)
+    check_inputs(k, r)
     for i in range(nb_trials):
         # Prince init
         prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
         m, pred = misc(labels_oh, prince_init['classes'], True) 
-        cm = confusion_matrix(labels_oh, pred)
-        purity = cluster_purity(cm)
-            
+        
+        sil = silhouette_score(dm, pred, metric = 'precomputed')            
         micro = precision_score(labels_oh, pred, average = 'micro')
         macro = precision_score(labels_oh, pred, average = 'macro')
-        #print(micro)
-        #print(macro)
     
         mca_mdgmm_res = mca_mdgmm_res.append({'it_id': i + 1, 'r': str(r),\
+                                              'k': k,\
                                               'micro': micro, 'macro': macro, \
-                                        'purity': purity}, ignore_index=True)
-       
-
+                                              'silhouette': sil},\
+                                               ignore_index=True)
+           
 mca_mdgmm_res.groupby('r').mean()
 mca_mdgmm_res.groupby('r').std()
 
 mca_mdgmm_res.to_csv(res_folder + '/mca_mdgmm_res.csv')
 
-# MDGMM. Thresholds use: 0.5 and 0.10
-# First fing the best architecture 
+#============================================
+# MDGMM. Thresholds use: ? and ?
+#============================================
 
-r = np.array([5, 4, 2])
+# First find the best architecture 
 numobs = len(y)
-k = [4, n_clusters]
+r = {'c': [nb_cont], 'd': [5], 't': [4, 3]}
+k = {'c': [1], 'd': [4], 't': [n_clusters, 1]}
+
 eps = 1E-05
 it = 30
 maxstep = 100
@@ -206,7 +256,8 @@ mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'purity'])
 
 
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
-out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps, maxstep, seed = None)
+out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
+            maxstep, seed = None)
 
 r = out['best_r']
 numobs = len(y)
@@ -216,7 +267,7 @@ it = 30
 maxstep = 100
 
 nb_trials= 30
-mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'purity'])
+mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'silhouette'])
 
 for i in range(nb_trials):
 
@@ -225,21 +276,23 @@ for i in range(nb_trials):
     prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
 
     try:
-        out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, M, it, eps, maxstep, seed = None)
+        out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it,\
+                    eps, maxstep, perform_selec = False, seed = None)
         m, pred = misc(labels_oh, out['classes'], True) 
         cm = confusion_matrix(labels_oh, pred)
         purity = cluster_purity(cm)
-        
+
+        sil = silhouette_score(dm, pred, metric = 'precomputed')                    
         micro = precision_score(labels_oh, pred, average = 'micro')
         macro = precision_score(labels_oh, pred, average = 'macro')
-        print(micro)
-        print(macro)
 
-        mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': micro, 'macro': macro, \
-                                    'purity': purity}, ignore_index=True)
+        mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': micro,\
+                                    'macro': macro, 'silhouette': sil},\
+                                     ignore_index=True)
     except:
-        mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': np.nan, 'macro': np.nan, \
-                                    'purity': np.nan}, ignore_index=True)
+        mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': np.nan,\
+                                     'macro': np.nan, 'silhouette': np.nan},\
+                                     ignore_index=True)
 
 
 

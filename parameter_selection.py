@@ -7,9 +7,11 @@ Created on Tue Jun  2 15:39:05 2020
 
 
 # To merge with hyper-parameter selection
+
 from copy import deepcopy
-from data_preprocessing import bin_to_bern
+from utilities import isnumeric
 from sklearn.decomposition import PCA
+from data_preprocessing import bin_to_bern
 from sklearn.linear_model import LogisticRegression
 # Dirty local hard copy of the Github bevel package
 from bevel.linear_ordinal_regression import  OrderedLogit 
@@ -98,33 +100,36 @@ def rl1_selection(y_bin, y_ord, zl1_ys, w_s, Ld):
 
 
 '''
-rl1_select = rl1_select_t
-z2_z1s = z2_z1s_t
+rl1_select = rl1_select_c
+z2_z1s = z2_z1s_c
+Lt = L['t']
 '''
 
-def other_r_selection(rl1_select, z2_z1s, head = True):
+def other_r_selection(rl1_select, z2_z1s, Lt, head = True,\
+                      mode_multi = False):
     '''
         Chose the meaningful dimensions from the second layer of each head/tail
     '''
-
+    
     S = [zz.shape[2] for zz in z2_z1s] + [1] 
     CORR_THRESHOLD = 0.20
     
-    L = len(z2_z1s)
+    Lh = len(z2_z1s)
+    rh = [z2_z1s[l].shape[-1] for l in range(Lh)] 
     M = np.array([zz.shape[0] for zz in z2_z1s] + [z2_z1s[-1].shape[1]])
     prev_new_r = [len(rl1_select)]
     
     dims_to_keep = []
     dims_corr = [] # The correlations associated with the different dimensions
     
-    for l in range(L):        
+    for l in range(Lh):        
         # Will not keep the following layers if one of the previous layer is of dim 1
         if prev_new_r[l] <= 1:
             dims_to_keep.append([])
             prev_new_r.append(0)
             
         else: 
-            old_rl = z2_z1s[l].shape[-1]
+            old_rl = rh[l]
             corr = np.zeros(old_rl)
             
             for s in range(S[l]):
@@ -137,10 +142,39 @@ def other_r_selection(rl1_select, z2_z1s, head = True):
             dims_corr.append(average_corr)
             
             new_rl = np.sum(average_corr > CORR_THRESHOLD)
-        
+            
             if new_rl < prev_new_r[l]: # Respect r1 > r2 > r3 ....
-                min_rl_for_viable_arch = 2 + L - (l + 1) if head else np.max(1 - l, 0) # To check
-                
+                # If multimode keep the same number of components and layer on the tail
+                if mode_multi:
+                    if head:
+                        min_rl_for_viable_arch = Lh + Lt - (l + 1)
+                    else:
+                        min_rl_for_viable_arch = np.max(Lt - (l + 1), 0)
+                else:
+                    if head:
+                        # If last layer of an head
+                        if (Lh >= 1) & (l == Lh - 2): 
+                            # If this layer is a bottleneck, we have to delete it
+                            if new_rl <= 2: 
+                                # Empty last head layer 
+                                dims_to_keep.append([]) 
+                                prev_new_r.append(0)
+                                dims_corr[-1] = np.full(rh[l], 0.0)
+
+                                # Tail layers remain the unchanged
+                                for l1 in range(l + 1, Lh):
+                                    dims_to_keep.append(list(range(rh[l1]))) 
+                                    prev_new_r.append(rh[l1])
+                                    dims_corr.append(np.full(rh[l1], 1.0))
+                                break
+                            else:
+                                min_rl_for_viable_arch = new_rl
+                            
+                        else: # To adapt
+                            min_rl_for_viable_arch = 2 + Lh - (l + 1)
+                    else: 
+                        min_rl_for_viable_arch = np.max(1 - l, 0)
+                                        
                 # Need to have an identifiable model but also a viable architecture
                 if new_rl >= min_rl_for_viable_arch:
                     wanted_dims = np.where(average_corr > CORR_THRESHOLD)[0].tolist()
@@ -169,6 +203,7 @@ last_r_select_d = other_r_select_d[-1]
 last_r_select_c = other_r_select_c[-1]
 score_d = dims_score_d[-1]
 score_c = dims_score_c[-1]
+mode_multi = True
 
 '''
 
@@ -177,6 +212,11 @@ def tail_r_selection(last_r_select_d, last_r_select_c, score_d, score_c):
     # Keep the dimension that have been chosen at least by one head
     dims_kept = list(set(np.concatenate([last_r_select_c, last_r_select_d]))) 
     
+    # Mode multi :
+    # On doit avoir au minimum rt1 = 3 pour 3 couches, = 2 pour 2 couches etc...
+    # Ajouter argument nb_layers_to_keep
+    
+    '''
     # If there too many dimensions have been deleted, keep the more informative    
     # Need at least rt0 = 2 to have a defined tail
     min_tail_dim = 2 # Useless as this case is treated above
@@ -184,6 +224,7 @@ def tail_r_selection(last_r_select_d, last_r_select_c, score_d, score_c):
         raise RuntimeError('Impossible case...')
         avg_score = np.mean([score_c, score_d], axis = 0)
         dims_kept = np.argsort(- avg_score)[:min_tail_dim] # -avg_score: In descending order
+    '''
         
     dims_kept = np.sort(dims_kept)
 
@@ -196,23 +237,32 @@ z2_z1s_c = z2_z1s_c[:bar_L['c']]
 
 '''
 
-def r_select(y_bin, y_ord, yc, zl1_ys_d, z2_z1s_d, w_s_d, z2_z1s_c, z2_z1s_t):
+def r_select(y_bin, y_ord, yc, zl1_ys_d, z2_z1s_d, w_s_d, z2_z1s_c, z2_z1s_t, n_clusters):
     ''' Automatic choice of dimension of each layer components '''
-    # TO DO: prevent the head layers from being deleted
+    # TO DO: allow the head layers to be deleted
+
+    mode_multi = False
+
+    if not(isnumeric(n_clusters)):
+        if n_clusters == 'multi':
+            mode_multi = True    
     
-    Ld = len(z2_z1s_d) + len(z2_z1s_t) + 1 # +1 for the dim of zl1_ys_d
+    Ld = len(z2_z1s_d) + len(z2_z1s_t) + 1 # +1 for the dim of the last layer of the tail
+    Lt = len(z2_z1s_t) + 1
     
     r_selected = {}
     
     # Discrete head selection
     rl1_select_d = rl1_selection(y_bin, y_ord, zl1_ys_d, w_s_d, Ld)
-    other_r_select_d, dims_score_d =  other_r_selection(rl1_select_d, z2_z1s_d)
+    other_r_select_d, dims_score_d =  other_r_selection(rl1_select_d, z2_z1s_d,\
+                                                         Lt, mode_multi = mode_multi)
     r_selected['d'] = [rl1_select_d] + other_r_select_d[:-1]
     
     # Continuous head selection
     p = yc.shape[1]
     rl1_select_c = list(range(p))
-    other_r_select_c, dims_score_c =  other_r_selection(rl1_select_c, z2_z1s_c)
+    other_r_select_c, dims_score_c =  other_r_selection(rl1_select_c, z2_z1s_c,\
+                                                        Lt, mode_multi = mode_multi)
     r_selected['c'] = [rl1_select_c] + other_r_select_c[:-1]
     
     # Common tail selection
@@ -220,7 +270,9 @@ def r_select(y_bin, y_ord, yc, zl1_ys_d, z2_z1s_d, w_s_d, z2_z1s_c, z2_z1s_t):
                      dims_score_d[-1], dims_score_c[-1])
     
     # Min viable arch should not apply there ???
-    other_r_select_t, dims_score_t =  other_r_selection(rl1_select_t, z2_z1s_t, head = False) 
+    other_r_select_t, dims_score_t =  other_r_selection(rl1_select_t, z2_z1s_t,\
+                                                        Lt, head = False,\
+                                                        mode_multi = mode_multi) 
     r_selected['t'] = [rl1_select_t] + other_r_select_t
     
     return r_selected
@@ -228,10 +280,19 @@ def r_select(y_bin, y_ord, yc, zl1_ys_d, z2_z1s_d, w_s_d, z2_z1s_c, z2_z1s_t):
 
 
     
-def k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer):
+def k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer, n_clusters):
     ''' Automatic choice of the number of components by layer '''
     
-    n_clusters = k['t'][clustering_layer]
+    #n_clusters = k['t'][clustering_layer]
+    mode_auto = False
+    mode_multi = False
+
+    if not(isnumeric(n_clusters)):
+        if n_clusters == 'auto':
+            mode_auto = True
+        elif n_clusters == 'multi':
+            mode_multi = True
+            
     w_s = {'c': w_s_c, 'd': w_s_d}
     Lt = len(k['t'])
     
@@ -259,6 +320,11 @@ def k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer):
     #==============================================
     # Selection for the tail
     #==============================================
+
+    # Nb of components have to remain unchanged for multiclus mode
+    if mode_multi: 
+        components_to_keep['t'] = [list(range(k['t'][l])) for l in range(new_Lt)]
+        return components_to_keep
     
     # If the clustering layer (cl) is deleted, define the last existing layer as cl 
     last_layer_idx = new_Lt - 2
@@ -271,19 +337,19 @@ def k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer):
     for l in range(new_Lt):
                 
         PROBA_THRESHOLD = 1 / (k['t'][l] * 4)
+        print('Tail threshold', PROBA_THRESHOLD)
 
         other_layers_indices = tuple(set(range(Lt)) - set([l]))
         components_proba = w.sum(other_layers_indices)
+
         
-        if l == clustering_layer:
+        if (l == clustering_layer) & (not(mode_auto)): # Pb avec mode multi
             biggest_lik_comp = np.sort(components_proba.argsort()[::-1][:n_clusters])
             components_to_keep['t'].append(biggest_lik_comp)
         
         # If l is then end of the tail then it has to have only one component
         elif l == (new_Lt - 1):
-            print('last layer')
             biggest_lik_comp = np.sort(components_proba.argsort()[::-1][:1])
-            print('Biggest lik comp', biggest_lik_comp)
             components_to_keep['t'].append(biggest_lik_comp)            
 
         else:
@@ -364,7 +430,16 @@ def dgmm_coeff_selection(eta_c_, H_c_, psi_c_, eta_d_, H_d_, psi_d_, L, r_to_kee
     H_d_new = [H_d_new[l][:, r_to_keep['d'][l]] for l in range(L['d'])]
     
     if L['d'] > 1:
-        H_d_new = [H_d_new[l][:, :, r_to_keep['d'][l + 1]] for l in range(L['d'])]
+        try:
+            H_d_new = [H_d_new[l][:, :, r_to_keep['d'][l + 1]] for l in range(L['d'])]
+        except:
+            for l in range(L['d']):
+                print(l)
+                H_d_new[l][:, :, r_to_keep['d'][l + 1]]
+            print(len(H_d_new))
+            print(r_to_keep['d'])
+            print(L['d'])
+            raise RuntimeError('Something wrong with H')
     
     # For the component between the last head layer and the first tail layer
     # To check
@@ -441,7 +516,12 @@ def path_proba_selection(w_s_c_, w_s_d_, k, k_to_keep, new_Lt):
         original_Lh = len(w[h].shape)
         new_Lh = len(k[h]) + new_Lt
         
-        new_k_idx_grid = np.ix_(*k_to_keep[h][:new_Lt])
+        k_to_keep_ht = k_to_keep[h][:new_Lt] + k_to_keep['t']
+        assert (len(k_to_keep_ht) == new_Lh)
+        
+        new_k_idx_grid = np.ix_(*k_to_keep_ht)
+        
+        #new_k_idx_grid = np.ix_(*k_to_keep[h][:new_Lt])
         
         # If layer deletion, sum the last components of the paths
         # Not checked

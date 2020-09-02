@@ -211,11 +211,11 @@ def fz_s(z_s, mu, sigma):
     return pz_s
 
 '''
-pzl1_ys = []
-z2_z1s = z2_z1s_c
-chsi = chsi_c
-rho = rho_c
-S = S_1L['c']
+pzl1_ys = t(pzl1_ys_d, (1, 0, 2))
+z2_z1s = z2_z1s_d
+chsi = chsi_d
+rho = rho_d
+S = S_1L['d']
 '''
 
 '''

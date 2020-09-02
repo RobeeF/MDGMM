@@ -38,7 +38,7 @@ def M_growth(it_nb, r_1L, numobs):
     M = {}
     M['c'] = ((40 / np.log(numobs)) * it_nb * np.sqrt(r_1L['c'])).astype(int)
     M['c'][0] = numobs
-    M['d'] = ((40 / np.log(numobs)) * it_nb * np.sqrt(r_1L['c'])).astype(int)
+    M['d'] = ((40 / np.log(numobs)) * it_nb * np.sqrt(r_1L['d'])).astype(int)
     
     return M
 
@@ -88,6 +88,12 @@ def is_min_architecture_reached(k, r, n_clusters):
 
     for h in ['c', 'd']:
         Lh = len(k[h])
+        # If more than one layer on head, then arch is not minimal
+        if Lh >= 2:
+            is_head_k_min[h] = False
+            is_head_r_min[h] = False
+            continue
+
         for l in range(Lh):
             # If all k >= 2
             if k[h][l] > 2:
@@ -99,7 +105,6 @@ def is_min_architecture_reached(k, r, n_clusters):
                 if r[h][l] > Lh + Lt - l:
                     is_head_r_min[h] = False
     
-    #.all() to check
     are_heads_min = np.all(list(is_head_k_min.values())) & np.all(list(is_head_r_min.values()))
     
     is_arch_min = are_heads_min & is_tail_min

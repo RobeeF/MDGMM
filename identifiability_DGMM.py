@@ -5,6 +5,7 @@ Created on Fri May 22 13:07:58 2020
 @author: rfuchs
 """
 
+from utilities import compute_path_params
 from copy import deepcopy
 from numeric_stability import ensure_psd
 import autograd.numpy as np
@@ -85,3 +86,9 @@ def identifiable_estim_DDGMM(eta_old, H_old, psi_old, Ez1, AT):
     
     return eta_new, H_new, psi_new
 
+def head_identifiability(eta, H, psi, w_s):
+    H = diagonal_cond(H, psi)
+    mu_s, sigma_s = compute_path_params(eta, H, psi)        
+    Ez1, AT = compute_z_moments(w_s, mu_s, sigma_s)
+    eta, H, psi = identifiable_estim_DDGMM(eta, H, psi, Ez1, AT)
+    return eta, H, psi, AT

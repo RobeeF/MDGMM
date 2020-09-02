@@ -5,6 +5,7 @@ Created on Wed Mar  4 19:26:07 2020
 @author: Utilisateur
 """
 
+from copy import deepcopy
 import autograd.numpy as np
 
 from autograd.numpy.linalg import pinv
@@ -159,12 +160,21 @@ import matplotlib.pyplot as plt
 
 def plot_2d(zl, classes):
     ''' Plot the 2d representation of the data '''
-    colors = ['red','green'] # For a 2 classes classification
+    
+    n_clusters = len(np.unique(classes))
+
+    colors = ['red', 'green', 'blue', 'silver', 'purple', 'black',\
+              'gold', 'orange'] # For a 2 classes classification
+    
+    if n_clusters >= len(colors):
+        raise ValueError('Too many classes for plotting,\
+                         please add some colors names above this line')
+                         
     fig = plt.figure(figsize=(16, 9))
     ax = plt.axes() 
     
     ax.scatter(zl[:, 0], zl[:, 1] , c = classes,\
-                    cmap=matplotlib.colors.ListedColormap(colors))
+                    cmap=matplotlib.colors.ListedColormap(colors[:n_clusters]))
         
     plt.title("2D Latent space representation of the data") 
     ax.set_xlabel('Latent dimension 1', fontweight ='bold')  
@@ -174,7 +184,14 @@ def plot_2d(zl, classes):
 
 def plot_3d(zl, classes):
     ''' Plot the 3d latent space representation of the data '''
-    colors = ['red','green'] # For a 2 classes classification
+    
+    n_clusters = len(np.unique(classes))
+    colors = ['red', 'green', 'blue', 'silver', 'purple', 'black',\
+              'gold', 'orange'] # For a 2 classes classification
+    
+    if n_clusters >= len(colors):
+        raise ValueError('Too many classes for plotting,\
+                         please add some colors names above this line')
 
     fig = plt.figure(figsize = (16, 9)) 
     ax = plt.axes(projection ="3d") 
@@ -188,7 +205,7 @@ def plot_3d(zl, classes):
     sctt = ax.scatter3D(zl[:,0], zl[:,1], zl[:,2], 
                         alpha = 0.8, 
                         c = classes,  
-                        cmap = matplotlib.colors.ListedColormap(colors)) 
+                        cmap = matplotlib.colors.ListedColormap(colors[:n_clusters])) 
       
     plt.title("3D Latent space representation of the data") 
     ax.set_xlabel('Latent dimension 1', fontweight ='bold')  
@@ -202,7 +219,16 @@ def plot_3d(zl, classes):
 ##########################################################################################################
 ################################# General purposes #######################################################
 ##########################################################################################################
-    
+   
+
+def isnumeric(var):
+    is_num = False
+    try:
+        int(var)
+        is_num = True
+    except:
+        pass
+    return is_num
 
 def asnumeric(lst):
     try:
@@ -250,8 +276,49 @@ def check_inputs(k, r):
         if not(are_dims_decreasing):
             raise ValueError('Dims must be decreasing from heads to tail !')
         
-                    
+###############################################################################
+############################ Syntaxic Sugar ###################################
+###############################################################################
+                
+def dispatch_dgmm_init(init):
+    eta_c = deepcopy(init['c']['eta'])
+    eta_d = deepcopy(init['d']['eta'])
 
-            
+    H_c = deepcopy(init['c']['H'])
+    H_d = deepcopy(init['d']['H'])
+
+    psi_c = deepcopy(init['c']['psi'])
+    psi_d = deepcopy(init['d']['psi'])
     
+    return eta_c, eta_d, H_c, H_d, psi_c, psi_d
+
+def dispatch_gllvm_init(init):
+    lambda_bin = deepcopy(init['lambda_bin'])
+    lambda_ord = deepcopy(init['lambda_ord'])
     
+    return lambda_bin, lambda_ord
+
+def dispatch_paths_init(init):
+    w_s_c = deepcopy(init['c']['w_s']) 
+    w_s_d = deepcopy(init['d']['w_s'])
+    return w_s_c, w_s_d
+
+def compute_S_1L(L_1L, k_1L, k):
+    # Paths of both (heads+tail) and tail
+    S1cL = [np.prod(k_1L['c'][l:]) for l in range(L_1L['c'] + 1)]
+    S1dL = [np.prod(k_1L['d'][l:]) for l in range(L_1L['d'])]
+    St = [np.prod(k['t'][l:]) for l in range(L_1L['t'])]
+    return {'c': S1cL, 'd': S1dL, 't': St}
+    
+
+def nb_comps_and_layers(k):
+    k_1L = {'c': k['c'] + k['t'], 'd': k['d'] + k['t'], 't': k['t']}
+    
+    # Number of hidden layers of both (heads + tail) and tail
+    L_1L = {'c': len(k['c']) + len(k['t']) - 1, 'd': len(k['d']) + len(k['t']),\
+            't': len(k['t'])}
+    L = {'c': len(k['c']) - 1, 'd': len(k['d']), 't': len(k['t'])}
+    bar_L = {'c': len(k['c']), 'd': len(k['d'])}
+
+    S_1L = compute_S_1L(L_1L, k_1L, k)
+    return k_1L, L_1L, L, bar_L, S_1L

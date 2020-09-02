@@ -22,7 +22,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler 
 
 from data_preprocessing import bin_to_bern
-from utilities import compute_path_params
+from utilities import compute_path_params, isnumeric
     
 import prince
 import pandas as pd
@@ -379,14 +379,29 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     
     # The clustering layer is the one used to perform the clustering 
     # i.e. the layer l such that k[l] == n_clusters
-    kc_complete = k['c'] + k['t'][:-1]
-    common_clus_layer_idx = (np.array(kc_complete) == n_clusters)
-    common_clus_layer_idx[:L['c']] = False    
-    clustering_layer = np.argmax(common_clus_layer_idx)
+    if not(isnumeric(n_clusters)):
+        if n_clusters == 'auto':
+            #n_clusters = k['t'][0]
+            # First tail layer is the default clustering layer in auto mode
+            clustering_layer = L['c']
+            
+        elif n_clusters == 'multi':
+            clustering_layer = range(L['t'])
+
+        else:
+            raise ValueError('Please enter an int, auto or multi for n_clusters')
+    else:
+        kc_complete = k['c'] + k['t'][:-1]
+        common_clus_layer_idx = (np.array(kc_complete) == n_clusters)
+        common_clus_layer_idx[:L['c']] = False    
+        clustering_layer = np.argmax(common_clus_layer_idx)
     
-    assert clustering_layer >= L['c']
+        assert clustering_layer >= L['c']
     
     init['classes'] = paths_pred_c[:,clustering_layer] 
+
+    
+    
          
     #=======================================================
     # Determining the coefficients of the GLLVM layer

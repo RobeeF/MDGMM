@@ -55,7 +55,6 @@ numobs = len(y)
 uniform_draws = uniform(0, 1E-12, numobs)
 y.iloc[:, 9] = np.where(y[9] == 0, uniform_draws, y[9])
 
-n_clusters = len(np.unique(labels))
 p = y.shape[1]
 
 #===========================================#
@@ -102,7 +101,7 @@ dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc)
 #===========================================# 
 
 r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
-k = {'c': [1], 'd': [2], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [2], 't': [2, 1]}
 
 seed = 1
 init_seed = 2
@@ -110,6 +109,8 @@ init_seed = 2
 eps = 1E-05
 it = 15
 maxstep = 100
+
+n_clusters = len(np.unique(labels))
 
 # MCA init
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
@@ -137,7 +138,10 @@ print(m)
 print(confusion_matrix(labels_oh, pred))
 print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
 
-# Plot the final groups
+
+#===========================================#
+# Final plotting
+#===========================================# 
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -155,18 +159,75 @@ cb.set_ticks(loc)
 cb.set_ticklabels(colors)
 
 
-# FAMD init
-famd_init = dim_reduce_init(y_categ_non_enc.infer_objects(), n_clusters,\
-                    k, r, nj, vd_categ_non_enc, use_famd = True, seed = None)
-m, pred = misc(labels_oh, famd_init['classes'], True) 
+#===========================================#
+# Try auto mode
+#===========================================# 
+r = {'c': [nb_cont], 'd': [4, 3], 't': [2, 1]}
+k = {'c': [1], 'd': [2, 2], 't': [5, 1]}
+
+prince_init = dim_reduce_init(y, 'auto', k, r, nj, var_distrib, seed = None)
+out = MDGMM(y_np, 'auto', r, k, prince_init, var_distrib, nj, it, eps,\
+            maxstep, seed, perform_selec = True)
+print('Silhouette', silhouette_score(dm, out['classes'], metric = 'precomputed'))
+
+#===========================================#
+# Try multi mode
+#===========================================# 
+n_clusters = 'multi'
+
+r = {'c': [nb_cont], 'd': [5, 4], 't': [3, 2, 1]}
+k = {'c': [1], 'd': [2, 2], 't': [3, 2, 1]}
+
+prince_init = dim_reduce_init(y, 'multi', k, r, nj, var_distrib, seed = None)
+out = MDGMM(y_np, 'multi', r, k, prince_init, var_distrib, nj, it, eps,\
+            maxstep, seed, perform_selec = True)
+
+# Check that all labels exist at each layer
+Lt = len(k['t']) - 1
+
+for l in range(Lt):
+    nb_classes_found = len(np.unique(out['classes'][l]))
+    print('Layer', l, 'was looking for', k['t'][l], 'groups,', \
+          nb_classes_found, 'found')
+    if nb_classes_found >= 2:
+        sil = silhouette_score(dm, out['classes'][l], metric = 'precomputed')
+        print('Silhouette coefficient is groups is', sil)
+        
+
+#=============================================#
+# As a Feature extractor
+#==============================================#
+from lightgbm import LGBMClassifier
+from sklearn.model_selection import train_test_split
+
+n_clusters = 2
+
+r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
+k = {'c': [1], 'd': [2], 't': [2, 1]}
+
+prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
+out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
+            maxstep, seed, perform_selec = True)
+
+deep_features = out['z']
+X_train, X_test, y_train, y_test = train_test_split(deep_features, labels_oh)
+
+lgbm = LGBMClassifier()
+lgbm.fit(X_train, y_train)
+preds = lgbm.predict(X_test)
+
+m, pred = misc(y_test, preds, True) 
 print(m)
-print(confusion_matrix(labels_oh, pred))
+print(confusion_matrix(y_test, pred))
+
+
+# Compare with famd
+
 
 
 #=========================================================================
 # Performance measure : Finding the best specification for init and MDGMM
 #=========================================================================
-
 res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/heart'
 
 
@@ -227,18 +288,26 @@ for r, k in zip(r_list, k_list):
     check_inputs(k, r)
     for i in range(nb_trials):
         # Prince init
-        prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
-        m, pred = misc(labels_oh, prince_init['classes'], True) 
+        try:
+            prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
+            m, pred = misc(labels_oh, prince_init['classes'], True) 
+            
+            sil = silhouette_score(dm, pred, metric = 'precomputed')            
+            micro = precision_score(labels_oh, pred, average = 'micro')
+            macro = precision_score(labels_oh, pred, average = 'macro')
         
-        sil = silhouette_score(dm, pred, metric = 'precomputed')            
-        micro = precision_score(labels_oh, pred, average = 'micro')
-        macro = precision_score(labels_oh, pred, average = 'macro')
-    
-        mca_mdgmm_res = mca_mdgmm_res.append({'it_id': i + 1, 'r': str(r),\
-                                              'k': k,\
-                                              'micro': micro, 'macro': macro, \
-                                              'silhouette': sil},\
-                                               ignore_index=True)
+            mca_mdgmm_res = mca_mdgmm_res.append({'it_id': i + 1, 'r': str(r),\
+                                                  'k': k,\
+                                                  'micro': micro, 'macro': macro, \
+                                                  'silhouette': sil},\
+                                                   ignore_index=True)
+        except:
+            mca_mdgmm_res = mca_mdgmm_res.append({'it_id': i + 1, 'r': str(r),\
+                                                  'k': k,\
+                                                  'micro': np.nan, 'macro': np.nan, \
+                                                  'silhouette': np.nan},\
+                                                   ignore_index=True)
+            
            
 mca_mdgmm_res.groupby('r').mean()
 mca_mdgmm_res.groupby('r').std()
