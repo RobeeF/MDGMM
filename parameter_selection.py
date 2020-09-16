@@ -22,6 +22,12 @@ warnings.simplefilter('default')
 
 import autograd.numpy as np
 
+'''
+zl1_ys = zl1_ys_d
+w_s = w_s_d
+
+'''
+
 def rl1_selection(y_bin, y_ord, zl1_ys, w_s, Ld):
     '''
     Select the dimension of the first discrete layer 
@@ -47,22 +53,26 @@ def rl1_selection(y_bin, y_ord, zl1_ys, w_s, Ld):
     ## PVALUE_THRESHOLD: The p-value threshold to zero a coefficient in ordinal
     ### logistic regression 
         
-    PROP_ZERO_THRESHOLD = 0.5
+    PROP_ZERO_THRESHOLD = 0.25
     PVALUE_THRESHOLD = 0.10
     
     # Detemine the dimensions that are weakest for Binomial variables
     zero_coef_mask = np.zeros(r0)
     for j in range(nb_bin):
         for s in range(S0):
-            Nj = np.max(y_bin[:,j]) # The support of the jth binomial is [1, Nj]
+            Nj = int(np.max(y_bin[:,j])) # The support of the jth binomial is [1, Nj]
+            
             if Nj ==  1:  # If the variable is Bernoulli not binomial
                 yj = y_bin[:,j]
                 z = zl1_ys[:,:,:,s]
             else: # If not, need to convert Binomial output to Bernoulli output
-                yj, z = bin_to_bern(Nj, y_bin[:,j], z[0])
+                yj, z = bin_to_bern(Nj, y_bin[:,j], zl1_ys[:,:,:,s])
+                #yj, z = bin_to_bern(Nj, y_bin[:,j], z[0])
         
             # Put all the M0 points in a series
-            X = z.flatten(order = 'C').reshape((M0 * numobs, r0), order = 'C')
+            X = z.flatten(order = 'C').reshape((-1, r0), order = 'C')
+
+            #X1 = z.flatten(order = 'C').reshape((M0 * numobs, r0), order = 'C')
             y_repeat = np.repeat(yj, M0).astype(int) # Repeat rather than tile to check
             
             lr = LogisticRegression(penalty = 'l1', solver = 'saga')
@@ -337,7 +347,6 @@ def k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer, n_clusters):
     for l in range(new_Lt):
                 
         PROBA_THRESHOLD = 1 / (k['t'][l] * 4)
-        print('Tail threshold', PROBA_THRESHOLD)
 
         other_layers_indices = tuple(set(range(Lt)) - set([l]))
         components_proba = w.sum(other_layers_indices)

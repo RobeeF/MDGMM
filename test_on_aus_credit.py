@@ -10,7 +10,7 @@ import os
 os.chdir('C:/Users/rfuchs/Documents/GitHub/MDGMM')
 
 from copy import deepcopy
-
+from utilities import check_inputs
 from sklearn.metrics import precision_score
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import OneHotEncoder
@@ -92,8 +92,8 @@ dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc)
 # Running the algorithm
 #===========================================# 
 
-r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
-k = {'c': [1], 'd': [2], 't': [n_clusters, 1]}
+r = {'c': [nb_cont], 'd': [4], 't': [3, 2, 1]}
+k = {'c': [1], 'd': [2], 't': [2, n_clusters, 1]}
 
 seed = 1
 init_seed = 2
@@ -116,24 +116,11 @@ print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
 
 
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
-            maxstep, seed, perform_selec = True)
+            maxstep, seed, perform_selec = False)
 m, pred = misc(labels_oh, out['classes'], True) 
 print(m)
 print(confusion_matrix(labels_oh, pred))
 print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
-
-#===========================================#
-# Try auto mode
-#===========================================# 
-
-r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
-k = {'c': [1], 'd': [2], 't': [5, 1]}
-
-n_clusters = 'auto'
-prince_init = dim_reduce_init(y, 'auto', k, r, nj, var_distrib, seed = None)
-out = MDGMM(y_np, 'auto', r, k, prince_init, var_distrib, nj, it, eps,\
-            maxstep, seed, perform_selec = True)
-print('Silhouette', silhouette_score(dm, out['classes'], metric = 'precomputed'))
 
 #===========================================#
 # Final plotting
@@ -155,6 +142,85 @@ cb = plt.colorbar()
 loc = np.arange(0,max(labels_oh), max(labels_oh)/float(len(colors)))
 cb.set_ticks(loc)
 cb.set_ticklabels(colors)
+
+
+#===========================================#
+# Try auto mode
+#===========================================# 
+
+r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
+k = {'c': [1], 'd': [2], 't': [5, 1]}
+
+n_clusters = 'auto'
+prince_init = dim_reduce_init(y, 'auto', k, r, nj, var_distrib, seed = None)
+out = MDGMM(y_np, 'auto', r, k, prince_init, var_distrib, nj, it, eps,\
+            maxstep, seed, perform_selec = True)
+print('Silhouette', silhouette_score(dm, out['classes'], metric = 'precomputed'))
+
+
+#===========================================#
+# Try multi mode
+#===========================================# 
+n_clusters = 'multi'
+
+r = {'c': [nb_cont], 'd': [5, 4], 't': [3, 2, 1]}
+k = {'c': [1], 'd': [2, 2], 't': [3, 2, 1]}
+
+prince_init = dim_reduce_init(y, 'multi', k, r, nj, var_distrib, seed = None)
+out = MDGMM(y_np, 'multi', r, k, prince_init, var_distrib, nj, it, eps,\
+            maxstep, seed, perform_selec = True)
+
+# Check that all labels exist at each layer
+Lt = len(k['t']) - 1
+
+for l in range(Lt):
+    nb_classes_found = len(np.unique(out['classes'][l]))
+    print('Layer', l, 'was looking for', k['t'][l], 'groups,', \
+          nb_classes_found, 'found')
+    if nb_classes_found >= 2:
+        sil = silhouette_score(dm, out['classes'][l], metric = 'precomputed')
+        print('Silhouette coefficient is groups is', sil)
+        
+
+#=============================================#
+# As a Feature extractor
+#==============================================#
+from prince import FAMD
+from lightgbm import LGBMClassifier
+from sklearn.model_selection import cross_validate
+#**********************************
+# Extract deep features from MDGMM
+#**********************************
+
+r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
+k = {'c': [1], 'd': [2], 't': [2, 1]}
+
+prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
+out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
+            maxstep, seed, perform_selec = True)
+
+mdgmm_dp = out['z']
+
+#**********************************
+# Extract deep features from FAMD
+#**********************************
+
+famd = FAMD(n_components = 2,\
+    n_iter=3, copy=True,\
+    check_input=True, engine='auto')
+famd_dp = famd.fit_transform(y).values 
+
+#**********************************
+# Fit the LGBM
+#**********************************
+
+lgbm = LGBMClassifier(objective = 'binary')
+mdgmm_fx = cross_validate(lgbm, mdgmm_dp, labels_oh.astype(int), cv = 5, scoring  = 'accuracy')
+print('MDGMM test score', np.mean(mdgmm_fx['test_score']))
+
+lgbm = LGBMClassifier(objective = 'binary')
+famd_fx = cross_validate(lgbm, famd_dp, labels_oh.astype(int), cv = 5, scoring  = 'accuracy')
+print('FAMD test score', np.mean(famd_fx['test_score']))
 
 
 #=========================================================================
@@ -219,27 +285,41 @@ for r, k in zip(r_list, k_list):
     print(r)
     check_inputs(k, r)
     for i in range(nb_trials):
-        # Prince init
-        prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
-        m, pred = misc(labels_oh, prince_init['classes'], True) 
+        try:
+            prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
+            m, pred = misc(labels_oh, prince_init['classes'], True) 
+            
+            sil = silhouette_score(dm, pred, metric = 'precomputed')            
+            micro = precision_score(labels_oh, pred, average = 'micro')
+            macro = precision_score(labels_oh, pred, average = 'macro')
         
-        sil = silhouette_score(dm, pred, metric = 'precomputed')            
-        micro = precision_score(labels_oh, pred, average = 'micro')
-        macro = precision_score(labels_oh, pred, average = 'macro')
-    
-        mca_mdgmm_res = mca_mdgmm_res.append({'it_id': i + 1, 'r': str(r),\
+            mca_mdgmm_res = mca_mdgmm_res.append({'it_id': i + 1, 'r': str(r),\
+                                                  'k': k,\
+                                                  'micro': micro, 'macro': macro, \
+                                                  'silhouette': sil},\
+                                                   ignore_index=True)            
+            
+        except (ValueError, RuntimeError):
+            mca_mdgmm_res = mca_mdgmm_res.append({'it_id': i + 1, 'r': str(r),\
                                               'k': k,\
-                                              'micro': micro, 'macro': macro, \
-                                              'silhouette': sil},\
+                                              'micro': np.nan, 'macro': np.nan, \
+                                              'silhouette': np.nan},\
                                                ignore_index=True)
-           
+
+            
+                  
 mca_mdgmm_res.groupby('r').mean()
+mca_mdgmm_res.groupby('r').mean().max()
+
 mca_mdgmm_res.groupby('r').std()
 
 mca_mdgmm_res.to_csv(res_folder + '/mca_mdgmm_res.csv')
 
 #============================================
 # MDGMM. Thresholds use: ? and ?
+# Avec rd1 5 ca avait l'air mieux
+# r {'d': [4], 't': [2, 1], 'c': [6]}
+# k {'d': [2], 't': [2, 1], 'c': [1]}
 #============================================
 
 # First find the best architecture 
@@ -250,10 +330,6 @@ k = {'c': [1], 'd': [4], 't': [n_clusters, 1]}
 eps = 1E-05
 it = 30
 maxstep = 100
-
-nb_trials= 30
-mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'purity'])
-
 
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
@@ -269,7 +345,7 @@ maxstep = 100
 nb_trials= 30
 mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'silhouette'])
 
-for i in range(nb_trials):
+for i in range(1, nb_trials):
 
     print(i)
     # Prince init
@@ -280,7 +356,6 @@ for i in range(nb_trials):
                     eps, maxstep, perform_selec = False, seed = None)
         m, pred = misc(labels_oh, out['classes'], True) 
         cm = confusion_matrix(labels_oh, pred)
-        purity = cluster_purity(cm)
 
         sil = silhouette_score(dm, pred, metric = 'precomputed')                    
         micro = precision_score(labels_oh, pred, average = 'micro')
@@ -289,7 +364,7 @@ for i in range(nb_trials):
         mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': micro,\
                                     'macro': macro, 'silhouette': sil},\
                                      ignore_index=True)
-    except:
+    except (ValueError, RuntimeError):
         mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': np.nan,\
                                      'macro': np.nan, 'silhouette': np.nan},\
                                      ignore_index=True)
@@ -300,3 +375,201 @@ mdgmm_res.mean()
 mdgmm_res.std()
 
 mdgmm_res.to_csv(res_folder + '/mdgmm_res.csv')
+
+#=======================================================================
+# Performance measure : Finding the best specification for other algos
+#=======================================================================
+
+from kmodes.kmodes import KModes
+from kmodes.kprototypes import KPrototypes
+from sklearn.cluster import AgglomerativeClustering
+from minisom import MiniSom   
+from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import StandardScaler
+
+# <nb_trials> tries for each specification
+nb_trials = 30
+
+res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/aus_credit'
+
+#****************************
+# Partitional algorithm
+#****************************
+
+part_res_modes = pd.DataFrame(columns = ['it_id', 'init', 'micro', 'macro', 'silhouette'])
+
+inits = ['Huang', 'Cao', 'random']
+
+for init in inits:
+    print(init)
+    for i in range(nb_trials):
+        km = KModes(n_clusters= n_clusters, init=init, n_init=10, verbose=0)
+        kmo_labels = km.fit_predict(y_np_nenc)
+        m, pred = misc(labels_oh, kmo_labels, True)
+        
+        sil = silhouette_score(dm, pred, metric = 'precomputed')            
+        micro = precision_score(labels_oh, pred, average = 'micro')
+        macro = precision_score(labels_oh, pred, average = 'macro')
+
+        part_res_modes = part_res_modes.append({'it_id': i + 1, 'init': init, \
+                            'micro': micro, 'macro': macro, 'silhouette': sil}, \
+                                               ignore_index=True)
+            
+# Cao best spe
+part_res_modes.groupby('init').mean()
+part_res_modes.groupby('init').mean().max()
+part_res_modes.groupby('init').std() 
+
+part_res_modes.to_csv(res_folder + '/part_res_modes.csv')
+
+#****************************
+# K prototypes
+#****************************
+
+part_res_proto = pd.DataFrame(columns = ['it_id', 'init', 'micro', 'macro', 'silhouette'])
+
+
+for init in inits:
+    print(init)
+    for i in range(nb_trials):
+        km = KPrototypes(n_clusters = n_clusters, init = init, n_init=10, verbose=0)
+        kmo_labels = km.fit_predict(y_np_nenc, categorical = np.where(cf_non_enc)[0].tolist())
+        m, pred = misc(labels_oh, kmo_labels, True) 
+        
+        sil = silhouette_score(dm, pred, metric = 'precomputed')            
+        micro = precision_score(labels_oh, pred, average = 'micro')
+        macro = precision_score(labels_oh, pred, average = 'macro')
+
+        part_res_proto = part_res_proto.append({'it_id': i + 1, 'init': init, \
+                            'micro': micro, 'macro': macro, 'silhouette': sil}, \
+                                               ignore_index=True)
+
+# Random is best
+part_res_proto.groupby('init').mean()
+part_res_proto.groupby('init').std()
+
+part_res_proto.to_csv(res_folder + '/part_res_proto.csv')
+
+#****************************
+# Hierarchical clustering
+#****************************
+
+hierarch_res = pd.DataFrame(columns = ['it_id', 'linkage', 'micro', 'macro', 'silhouette'])
+
+linkages = ['complete', 'average', 'single']
+
+for linky in linkages: 
+    for i in range(nb_trials):  
+        aglo = AgglomerativeClustering(n_clusters = n_clusters, affinity ='precomputed', linkage = linky)
+        aglo_preds = aglo.fit_predict(dm)
+        m, pred = misc(labels_oh, aglo_preds, True) 
+
+        sil = silhouette_score(dm, pred, metric = 'precomputed')            
+        micro = precision_score(labels_oh, pred, average = 'micro')
+        macro = precision_score(labels_oh, pred, average = 'macro')
+
+
+        hierarch_res = hierarch_res.append({'it_id': i + 1, 'linkage': linky, \
+                            'micro': micro, 'macro': macro, 'silhouette': sil},\
+                                           ignore_index=True)
+
+ 
+hierarch_res.groupby('linkage').mean()
+hierarch_res.groupby('linkage').std()
+
+hierarch_res.to_csv(res_folder + '/hierarch_res.csv')
+
+#****************************
+# Neural-network based
+#****************************
+
+som_res = pd.DataFrame(columns = ['it_id', 'sigma', 'lr' ,'micro', 'macro', 'silhouette'])
+y_np = y.values.astype(float)
+numobs = len(y)
+
+sigmas = np.linspace(0.001, 3, 5)
+lrs = np.linspace(0.0001, 0.5, 10)
+
+for sig in sigmas:
+    for lr in lrs:
+        for i in range(nb_trials):
+            som = MiniSom(n_clusters, 1, y_np.shape[1], sigma = sig, learning_rate = lr) # initialization of 6x6 SOM
+            som.train(y_np, 100) # trains the SOM with 100 iterations
+            som_labels = [som.winner(y_np[i])[0] for i in range(numobs)]
+            m, pred = misc(labels_oh, som_labels, True) 
+            
+            try: # If only one class sil is not defined
+                sil = silhouette_score(dm, pred, metric = 'precomputed')
+            except ValueError:
+                sil = np.nan
+                
+            micro = precision_score(labels_oh, pred, average = 'micro')
+            macro = precision_score(labels_oh, pred, average = 'macro')
+
+            som_res = som_res.append({'it_id': i + 1, 'sigma': sig, 'lr': lr, \
+                            'micro': micro, 'macro': macro, 'silhouette': sil},\
+                                     ignore_index=True)
+
+som_res.groupby(['sigma', 'lr']).mean()
+som_res.groupby(['sigma', 'lr']).mean().max()
+som_res.groupby(['sigma', 'lr']).std()
+som_res.to_csv(res_folder + '/som_res.csv')
+
+
+#****************************
+# Other algorithms family
+#****************************
+
+ss = StandardScaler()
+y_scale = ss.fit_transform(y_np)
+
+dbs_res = pd.DataFrame(columns = ['it_id', 'data' ,'leaf_size', 'eps',\
+                                  'min_samples','micro', 'macro', 'silhouette'])
+
+lf_size = np.arange(1,6) * 10
+epss = np.linspace(0.01, 5, 5)
+min_ss = np.arange(1, 5)
+data_to_fit = ['scaled', 'gower']
+
+for lfs in lf_size:
+    print("Leaf size:", lfs)
+    for eps in epss:
+        for min_s in min_ss:
+            for data in data_to_fit:
+                for i in range(1):
+                    if data == 'gower':
+                        dbs = DBSCAN(eps = eps, min_samples = min_s, \
+                                     metric = 'precomputed', leaf_size = lfs).fit(dm)
+                    else:
+                        dbs = DBSCAN(eps = eps, min_samples = min_s, leaf_size = lfs).fit(y_scale)
+                        
+                    dbs_preds = dbs.labels_
+                    
+                    if len(np.unique(dbs_preds)) > n_clusters:
+                        continue
+                    
+                    m, pred = misc(labels_oh, dbs_preds, True) 
+                    
+                    try: # If only one class sil is not defined
+                        sil = silhouette_score(dm, pred, metric = 'precomputed')
+                    except ValueError:
+                        sil = np.nan
+                        
+                    micro = precision_score(labels_oh, pred, average = 'micro')
+                    macro = precision_score(labels_oh, pred, average = 'macro')
+
+                    dbs_res = dbs_res.append({'it_id': i + 1, 'leaf_size': lfs, \
+                                'eps': eps, 'min_samples': min_s, 'micro': micro,\
+                                    'data': data, 'macro': macro, 'silhouette': sil},\
+                                             ignore_index=True)
+
+# scaled data eps = 3.7525 and min_samples = 4  is the best spe
+mean_res = dbs_res.groupby(['data','leaf_size', 'eps', 'min_samples']).mean()
+maxs = mean_res.max()
+
+mean_res[mean_res['micro'] == maxs['micro']].std()
+mean_res[mean_res['macro'] == maxs['macro']].std()
+mean_res[mean_res['silhouette'] == maxs['silhouette']].std()
+
+dbs_res.to_csv(res_folder + '/dbs_res.csv')
+

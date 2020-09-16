@@ -518,7 +518,6 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     if n_clusters == 'multi':
         out['z'] = z_tail
     else:
-        print('Clustering layer', clustering_layer)
         out['z'] = z_tail[clustering_layer]
     return(out)
 

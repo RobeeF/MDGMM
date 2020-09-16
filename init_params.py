@@ -94,7 +94,7 @@ def get_MFA_params(zl, kl, rl_nextl):
         
         clusters_found, count = np.unique(s, return_counts = True)
 
-        if (len(clusters_found) == kl) & (count > 5).all():
+        if (len(clusters_found) == kl) & (count > 10).all():
             not_all_groups = False
             
         empty_count_counter += 1
@@ -117,6 +117,7 @@ def get_MFA_params(zl, kl, rl_nextl):
         try:
             fa.fit(zl[indices])
         except LinAlgError:
+            #print(zl[indices])
             raise RuntimeError("Eigenvalues could not converge. It might be due \
                                to the fact that one of the continuous variable \
                             presented no withing-group variation. Check your \
@@ -149,7 +150,9 @@ def init_head(zh_first, kh, rh, numobs, Lh):
     paths_pred = []
 
     for l in range(Lh - 1): 
+        #print('l layer of init head is ', l)
         params = get_MFA_params(zh[l], kh[l], rh[l:])
+            
         eta.append(params['eta'][..., n_axis])
         H.append(params['H'])
         psi.append(params['psi'])
@@ -176,13 +179,44 @@ def init_junction_layer(r, k, zc, zd):
     for h in ['c', 'd']:
         last_kh = k[h][-1]
         last_zh = zc[-1] if h == 'c' else zd[-1]
+        
+        
+        ###########################################
+        not_all_groups = True
 
+        max_trials = 100
+        empty_count_counter = 0
+
+        #======================================================
+        # Fit a GMM in the continuous space
+        #======================================================
+        
+        while not_all_groups:
+            # If not enough obs per group then the MFA diverge...    
+    
+            gmm_h = GaussianMixture(n_components = last_kh)
+            s_h = gmm_h.fit_predict(last_zh)
+            paths_pred[h] = s_h
+            
+            clusters_found, count = np.unique(s_h, return_counts = True)
+    
+            if (len(clusters_found) == last_kh) & (count > 10).all():
+                not_all_groups = False
+                
+            empty_count_counter += 1
+            if empty_count_counter >= max_trials:
+                raise RuntimeError('Could not find a GMM init that presents the \
+                                   proper number of groups:', last_kh)
+        
+        ###############################################
+        '''
         # Find groups among each head latent variable
         gmm_h = GaussianMixture(n_components = last_kh)
         s_h = gmm_h.fit_predict(last_zh)
         paths_pred[h] = s_h
         
         clusters_found, count = np.unique(s_h, return_counts = True)
+        '''
         
         assert len(clusters_found) == last_kh
 
@@ -202,6 +236,7 @@ def init_junction_layer(r, k, zc, zd):
             # Choose r['t] - 1 but could take less 
             pls = PLSRegression(n_components = r['t'][0] - 1)
             pls.fit(zt_first[indices], centered_zh)
+
             
             H_hj = (pls.x_weights_ @ pls.y_loadings_.T).T
             H_h.append(H_hj)
@@ -411,7 +446,7 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     lambda_bin = np.zeros((nb_bin, r['d'][0] + 1))
     
     for j in range(nb_bin): 
-        Nj = np.max(y_bin[:,j]) # The support of the jth binomial is [1, Nj]
+        Nj = int(np.max(y_bin[:,j])) # The support of the jth binomial is [1, Nj]
         
         if Nj ==  1:  # If the variable is Bernoulli not binomial
             yj = y_bin[:,j]
