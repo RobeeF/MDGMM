@@ -13,12 +13,11 @@ from numeric_stability import ensure_psd
 from parameter_selection import r_select, k_select, check_if_selection, \
     dgmm_coeff_selection, gllvm_coeff_selection, path_proba_selection
 
-from identifiability_DGMM import identifiable_estim_DDGMM, compute_z_moments,\
-    diagonal_cond, head_identifiability
+from identifiability_DGMM import head_identifiability
                          
 from MCEM_DGMM import fz2_z1s, fz_ys,E_step_DGMM_d, M_step_DGMM,\
     draw_z_s_all_network, draw_z2_z1s_network, continuous_lik,\
-    fz_s, fz_yCyDs, fy_zs_c, E_step_DGMM_c, E_step_DGMM_t,\
+    fz_s, fz_yCyDs, fy_zs, E_step_DGMM_c, E_step_DGMM_t,\
     M_step_DGMM_t, fst_yCyD
 
 from MCEM_GLLVM import draw_zl1_ys, fy_zl1, E_step_GLLVM, \
@@ -203,9 +202,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         
         # Continuous head quantities
         ps_y_c, py_s_c, py_c = continuous_lik(yc, mu_s_c[0], sigma_s_c[0], w_s_c)
-        #print('p(y^C) = ', np.log(py_c).sum())
-        #print('p(y^D) = ', np.log(py_d).sum())
         
+        pz_s_d = fz_s(z_s_d, mu_s_d, sigma_s_d) 
         pz_s_c = fz_s(z_s_c, mu_s_c, sigma_s_c) 
         
         #del(py_zl1)
@@ -227,7 +225,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
 
         # Junction layer computations
         # Compute p(zC |s)
-        py_zs_c = fy_zs_c(pz_ys_c, py_s_c, pz_s_c)
+        py_zs_d = fy_zs(pz_ys_d, py_s_d) # New
+        py_zs_c = fy_zs(pz_ys_c, py_s_c)
  
         # Compute p(zt | yC, yD, sC, SD)        
         pzt_yCyDs = fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, M, S_1L, L)
@@ -256,7 +255,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
             z_s_c[bar_L['c']:], zc_s_c[bar_L['c']:], z2_z1s_c[bar_L['c']:],\
                 pzt_yCyDs, pz2_z1s_t, S_1L, L, k_1L)  
 
-        pst_yCyD = fst_yCyD(py_s_c, py_s_d, w_s_d, py_d, py_c, k_1L, L)                                  
+        #pst_yCyD = fst_yCyD_old(py_s_c, py_s_d, w_s_d, py_d, py_c, k_1L, L)                                  
+        pst_yCyD = fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_d, k_1L, L)                                  
                
         ###########################################################################
         ############################ M step #######################################

@@ -381,14 +381,14 @@ py_s = py_s_c
 pz_s = pz_s_c
 '''
 
-def fy_zs_c(pz_ys, py_s, pz_s):
+def fy_zs(pz_ys, py_s):
     
     L = len(pz_ys)
     epsilon = 1E-16
     
     fy_zs = []
     for l in range(L):
-        pz_sl = np.where(pz_s[l + 1] <= epsilon, epsilon, pz_s[l + 1]) 
+        #pz_sl = np.where(pz_s[l + 1] <= epsilon, epsilon, pz_s[l + 1]) 
         
         norm_cste = (pz_ys[l] * np.expand_dims(py_s, 1)).sum(0, keepdims = True)
         norm_cste = np.where(norm_cste <= epsilon, epsilon, norm_cste) 
@@ -464,10 +464,56 @@ w_s_c.reshape(*k_1L['c'], order = 'C').sum(0)
 
 '''
 
+def fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_d, k_1L, L):
+
+    epsilon = 1E-16
+    numobs = py_zs_c[0].shape[0]
+        
+    # p(y^h | zt^{(1)}, s^h, Theta) for h in {C, D}.
+    py_zts_c = py_zs_c[L['c']]
+    py_zts_d = py_zs_d[L['d']]
+
+    Mt = py_zts_c.shape[1] # Nb of MC points of the first tail layer
+
+    # p(y^C | zt^{(1)}, s^t, Theta)    
+    py_zts_c = py_zts_c.reshape(numobs, Mt, *k_1L['c'], order = 'C')
+    idx_to_sum = tuple(range(2, L['c'] + 3))
+    py_zts_c = py_zts_c.sum(idx_to_sum).reshape(numobs, Mt, -1, order = 'C')
+    
+    # p(y^D | zt^{(1)}, s^t, Theta)
+    py_zts_d = py_zts_d.reshape(numobs, Mt, *k_1L['d'], order = 'C')
+    idx_to_sum = tuple(range(2, L['d'] + 2))
+    py_zts_d = py_zts_d.sum(idx_to_sum).reshape(numobs, Mt, -1, order = 'C')    
+    
+    # p(s^t | Theta) 
+    ps_t = w_s_d.reshape(*k_1L['d'], order = 'C')
+    idx_to_sum = tuple(range(L['d']))
+    ps_t = ps_t.sum(idx_to_sum).reshape(-1, order = 'C')[n_axis, n_axis] 
+    
+    # p(zt^{(1)} | s^t, Theta)
+    pz_s_t = pz_s_d[L['d']]    
+    pz_s_t = pz_s_t.reshape(Mt, *k_1L['d'], order = 'C')
+    
+    # The paths have been tiled so I mean the quantities and not sum them. 
+    idx_to_mean = tuple(range(1, L['d'] + 1))    
+    pz_s_t = pz_s_t.mean(idx_to_mean).reshape(Mt, -1, order = 'C')[n_axis]
+
+    pst_yCyDzt = (py_zts_c * py_zts_d * ps_t * pz_s_t) # Unormalized
+    
+    pst_yCyD = pst_yCyDzt.sum(1)
+
+    # Normalization useful ?
+    pst_yCyD_stab = np.where(pst_yCyD == 0.0, epsilon, pst_yCyD)
+    pst_yCyD = pst_yCyD / pst_yCyD_stab.sum(1, keepdims = True)    
+
+    return pst_yCyD
+
+
+
 # Pk w_s_y_d.sum((1,2)) et w_s_y_c.sum((1,2)) pas la même ?
 # C'est la mêmeà létape 0 de l'arch minimale en tout cas.
 # Mais s'écarte après...
-def fst_yCyD(py_s_c, py_s_d, w_s_d, py_d, py_c, k_1L, L):
+def fst_yCyD_old(py_s_c, py_s_d, w_s_d, py_d, py_c, k_1L, L):
     ''' p(s^{(l)t} | y^C, y^D) for l in the common tail'''
     
     epsilon = 1E-16
