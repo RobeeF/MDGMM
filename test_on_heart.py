@@ -101,9 +101,9 @@ dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc)
 #===========================================#
 # Running the algorithm
 #===========================================# 
-
-r = {'c': [nb_cont], 'd': [4], 't': [2, 1]}
-k = {'c': [1], 'd': [2], 't': [2, 1]}
+n_clusters = 3
+r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
+k = {'c': [1], 'd': [2], 't': [n_clusters, 1]}
 
 seed = 1
 init_seed = 2
@@ -112,7 +112,7 @@ eps = 1E-05
 it = 15
 maxstep = 100
 
-n_clusters = len(np.unique(labels))
+#n_clusters = len(np.unique(labels))
 
 dtype = {y.columns[j]: np.float64 if (var_distrib[j] != 'bernoulli') & \
         (var_distrib[j] != 'categorical') else np.str for j in range(p_new)}
@@ -169,8 +169,8 @@ cb.set_ticklabels(colors)
 #===========================================#
 # Try auto mode
 #===========================================# 
-r = {'c': [nb_cont], 'd': [4, 3], 't': [2, 1]}
-k = {'c': [1], 'd': [2, 2], 't': [5, 1]}
+r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
+k = {'c': [1], 'd': [2], 't': [4, 1]}
 
 prince_init = dim_reduce_init(y, 'auto', k, r, nj, var_distrib, seed = None)
 out = MDGMM(y_np, 'auto', r, k, prince_init, var_distrib, nj, it, eps,\
