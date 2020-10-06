@@ -54,7 +54,7 @@ p = y.shape[1]
 # Formating the data
 #===========================================#
 var_distrib = np.array(['binomial', 'continuous', 'continuous', 'continuous',\
-                        'continuous', 'continuous', 'continuous', 'continuous']) 
+                        'continuous', 'continuous', 'continuous', 'ordinal']) 
  
 # Ordinal data already encoded
  
@@ -88,8 +88,8 @@ dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc)
 # Running the algorithm
 #===========================================# 
 
-r = {'c': [nb_cont], 'd': [4], 't': [3, 2, 1]}
-k = {'c': [1], 'd': [2], 't': [2, n_clusters,  1]}
+r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
+k = {'c': [1], 'd': [2], 't': [n_clusters,  1]}
 
 seed = 1
 init_seed = 2
@@ -368,10 +368,11 @@ for i in range(nb_trials):
 
 
 
-Z.mean()
+mdgmm_res.mean()
 mdgmm_res.std()
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res.csv')
+
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_correc.csv')
 
 #=======================================================================
 # Performance measure : Finding the best specification for other algos

@@ -92,7 +92,7 @@ dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc)
 # Running the algorithm
 #===========================================# 
 
-n_clusters = 4
+n_clusters = 2
 r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
 k = {'c': [1], 'd': [2], 't': [n_clusters, 1]}
 
@@ -346,7 +346,7 @@ maxstep = 100
 nb_trials= 30
 mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'silhouette'])
 
-for i in range(1, nb_trials):
+for i in range(nb_trials):
 
     print(i)
     # Prince init
@@ -375,7 +375,8 @@ for i in range(1, nb_trials):
 mdgmm_res.mean()
 mdgmm_res.std()
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res.csv')
+
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_correc.csv')
 
 #=======================================================================
 # Performance measure : Finding the best specification for other algos

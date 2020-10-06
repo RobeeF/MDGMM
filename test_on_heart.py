@@ -390,7 +390,7 @@ mdgmm_res.mean().max()
 
 mdgmm_res.std()
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_correct.csv')
 
 
 #=======================================================================

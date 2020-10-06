@@ -94,7 +94,6 @@ def draw_z2_z1s(chsi, rho, M, r):
     return z2_z1s
 
 
-# Common layers utilities
 def draw_z_s_all_network(mu_s_c, sigma_s_c, mu_s_d, sigma_s_d, yc, eta_c, \
                          eta_d, S_1L, L, M):
     ''' Draw z^{(l)h} from both heads and then from the tail ''' 
@@ -129,13 +128,6 @@ def draw_z_s_all_network(mu_s_c, sigma_s_c, mu_s_d, sigma_s_d, yc, eta_c, \
     
     return z_s_c, zc_s_c, z_s_d, zc_s_d   
 
-'''
-a = []
-for i1 in range(k_1L['c'][0]):
-    for i2 in range(k_1L['c'][1]):
-        a.append(yc - eta_c[0][i1].T)
-np.abs(t(np.stack(a), (1, 0 , 2)) - zc_s_c[0]).sum()
-'''
 
 def draw_z2_z1s_network(chsi_c, chsi_d, rho_c, rho_d, M, r_1L, L):
     ''' Draw z^{(l + 1)h} | z^{(l)h} from both heads and then from the tail ''' 
@@ -164,18 +156,6 @@ mu = mu_s_c
 sigma = sigma_s_c
 '''
 
-
-'''
-a = []
-
-for i1 in range(3):
-    for i2 in range(2):
-        for i3 in range(1):
-            a.append(pz_s[2][:,i3])
-   
-np.abs(np.stack(a).T - pz_s1[2])
-'''
-
 def fz_s(z_s, mu, sigma):
     ''' Compute p(z | s)'''
 
@@ -189,45 +169,20 @@ def fz_s(z_s, mu, sigma):
     for l in range(L):
         pz_sl = np.zeros((M[l], S[l]))  
         for s in range(S[l]):
-            try:
-                pz_sl[:, s] = mvnorm.pdf(z_s[l][:,:, s], \
-                                mean = mu[l][s, :, 0], \
-                                cov = sigma[l][s], allow_singular = True)
-            except:
-                print('The bad cov matrix is')
-                print(sigma[l][s])
-                
-         
+            pz_sl[:, s] = mvnorm.pdf(z_s[l][:,:, s], \
+                            mean = mu[l][s, :, 0], \
+                            cov = sigma[l][s], allow_singular = True)
+
         # Normalization to check
         norm_cste = pz_sl.sum(0, keepdims = True) 
         norm_cste = np.where(norm_cste <= epsilon, epsilon, norm_cste) 
 
         pz_sl = pz_sl / norm_cste
         
-        # Tile to check
         pz_sl = np.tile(pz_sl, (1, S[0]//S[l]))
         pz_s.append(pz_sl)
     
     return pz_s
-
-'''
-pzl1_ys = t(pzl1_ys_d, (1, 0, 2))
-z2_z1s = z2_z1s_d
-chsi = chsi_d
-rho = rho_d
-S = S_1L['d']
-'''
-
-'''
-a = []
-
-for i1 in range(2):
-    for i2 in range(2):
-        for i3 in range(1):
-            a.append(b[0].reshape((4, 2,  2, 1), order = 'C')[:,:, i2, i3])
-   
-np.abs(t(np.stack(a), (1, 2, 0)) - pz2_z1s[2]).sum()
-'''
 
 
 def fz2_z1s(pzl1_ys, z2_z1s, chsi, rho, S):
@@ -250,9 +205,7 @@ def fz2_z1s(pzl1_ys, z2_z1s, chsi, rho, S):
         pz2_z1s = [pzl1_ys]
     else: # For continuous head
         pz2_z1s = []
-    
-    #b = []
-        
+            
     for l in range(L):
         pz2_z1sm = np.zeros((M[l], M[l + 1], S[l]))  
         for s in range(S[l]):
@@ -269,7 +222,6 @@ def fz2_z1s(pzl1_ys, z2_z1s, chsi, rho, S):
         norm_cste = np.where(norm_cste <= epsilon, epsilon, norm_cste) 
 
         pz2_z1sm = pz2_z1sm / norm_cste
-        #b.append(deepcopy(pz2_z1sm))
         pz2_z1sm = np.tile(pz2_z1sm, (1, 1, S[0]//S[l]))
         pz2_z1s.append(pz2_z1sm)
         
@@ -332,24 +284,6 @@ def continuous_lik(yc, mu, sigma, w):
                 
     return ps_y, py_s, py[..., n_axis]
 
-
-'''
-pzl1_ys = []
-pz2_z1s = pz2_z1s_c
-'''
-
-'''
-a = []
-
-for i1 in range(2):
-    for i2 in range(2):
-        for i3 in range(1):
-            a.append(b[1].reshape((4, 2,  2, 1), order = 'C')[:,:, i2, i3])
-   
-np.abs(t(np.stack(a), (1, 2, 0)) - pz2_z1s[2]).sum()
-
-
-'''
      
 def fz_ys(pzl1_ys, pz2_z1s):
     ''' Compute p(z^{l} | y, s) in a recursive manner 
@@ -363,6 +297,7 @@ def fz_ys(pzl1_ys, pz2_z1s):
     
     if len(pzl1_ys) > 0: # For discrete head
         pz_ys = [pzl1_ys]
+        
     else: # For continuous head
         pz_ys = [pz2_z1s[0]]
         
@@ -388,13 +323,10 @@ def fy_zs(pz_ys, py_s):
     
     fy_zs = []
     for l in range(L):
-        #pz_sl = np.where(pz_s[l + 1] <= epsilon, epsilon, pz_s[l + 1]) 
         
         norm_cste = (pz_ys[l] * np.expand_dims(py_s, 1)).sum(0, keepdims = True)
         norm_cste = np.where(norm_cste <= epsilon, epsilon, norm_cste) 
         
-        #fy_zsl = pz_ys[l] * np.expand_dims(py_s, 1) / pz_sl[n_axis]
-
         # Norm constant to check        
         fy_zsl = pz_ys[l] * np.expand_dims(py_s, 1) / norm_cste
         fy_zs.append(fy_zsl)
@@ -410,9 +342,6 @@ def fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, M, S_1L, L):
     ''' Compute p(zt | yC, yD, sC, sD) for all common layers'''
     epsilon = 1E-16
 
-    #py_s_c_exp = np.expand_dims(py_s_c, 1)[..., n_axis]
-    #py_s_c_exp = np.where(py_s_c_exp <= epsilon, epsilon, py_s_c_exp) 
-
     numobs = py_zs_c[0].shape[0]
     fz_yCyDs = []
     for l in range(L['t']):
@@ -420,16 +349,6 @@ def fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, M, S_1L, L):
         #====================================================
         # Reshaping
         #====================================================
-        '''
-        py_zs_c_l = py_zs_c[L['c'] + l].reshape(numobs, M['c'][l + 1], \
-                                    S_1L['c'][0]// S_1L['t'][0], S_1L['t'][0],\
-                                        order = 'C') 
-        
-        pz_ys_d_l = pz_ys_d[L['d'] + l].reshape(numobs, M['d'][l + 1], \
-                                    S_1L['d'][0]// S_1L['t'][0], S_1L['t'][0],\
-                                        order = 'C')
-        '''
-            
             
         py_zs_c_l = py_zs_c[L['c'] + l].reshape(numobs, M['c'][L['c'] + l + 1], \
                                     S_1L['c'][0]// S_1L['t'][0], S_1L['t'][0],\
@@ -450,9 +369,6 @@ def fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, M, S_1L, L):
         norm_cste = np.where(norm_cste <= epsilon, epsilon, norm_cste) 
         
         fz_yCyDs_l = fz_yCyDs_l / norm_cste
-        #fz_yCyDs_l = fz_yCyDs_l / py_s_c_exp
-        #fz_yCyDs_l = fz_yCyDs_l / fz_yCyDs_l.sum((1, 3), keepdims = True)
-        
         fz_yCyDs.append(fz_yCyDs_l)
     
     return fz_yCyDs
@@ -463,6 +379,10 @@ w_s_d.reshape(*k_1L['d'], order = 'C').sum((0, 1))
 w_s_c.reshape(*k_1L['c'], order = 'C').sum(0)
 
 '''
+# Pk w_s_y_d.sum((1,2)) et w_s_y_c.sum((1,2)) pas la même ?
+# C'est la mêmeà létape 0 de l'arch minimale en tout cas.
+# Mais s'écarte après...
+ 
 
 def fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_d, k_1L, L):
 
@@ -493,56 +413,20 @@ def fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_d, k_1L, L):
     # p(zt^{(1)} | s^t, Theta)
     pz_s_t = pz_s_d[L['d']]    
     pz_s_t = pz_s_t.reshape(Mt, *k_1L['d'], order = 'C')
-    
-    # The paths have been tiled so I mean the quantities and not sum them. 
-    idx_to_mean = tuple(range(1, L['d'] + 1))    
-    pz_s_t = pz_s_t.mean(idx_to_mean).reshape(Mt, -1, order = 'C')[n_axis]
+    idx_to_sum = tuple(range(1, L['d'] + 1))    
+    pz_s_t = pz_s_t.sum(idx_to_sum).reshape(Mt, -1, order = 'C')[n_axis]
 
-    pst_yCyDzt = (py_zts_c * py_zts_d * ps_t * pz_s_t) # Unormalized
-    
-    pst_yCyD = pst_yCyDzt.sum(1)
+    # p(s^t, zt^{(1)}| y^C, y^D) then p(s^t | y^C, y^D)
+    pztst_yCyD = (py_zts_c * py_zts_d * ps_t * pz_s_t) # Unormalized
+    pst_yCyD = pztst_yCyD.sum(1) # Unormalized
 
-    # Normalization useful ?
+    # Normalization 
     pst_yCyD_stab = np.where(pst_yCyD == 0.0, epsilon, pst_yCyD)
     pst_yCyD = pst_yCyD / pst_yCyD_stab.sum(1, keepdims = True)    
 
     return pst_yCyD
 
-
-
-# Pk w_s_y_d.sum((1,2)) et w_s_y_c.sum((1,2)) pas la même ?
-# C'est la mêmeà létape 0 de l'arch minimale en tout cas.
-# Mais s'écarte après...
-def fst_yCyD_old(py_s_c, py_s_d, w_s_d, py_d, py_c, k_1L, L):
-    ''' p(s^{(l)t} | y^C, y^D) for l in the common tail'''
-    
-    epsilon = 1E-16
-
-    numobs = py_s_c.shape[0]
-    py_s_ct = py_s_c.reshape(numobs, *k_1L['c'], order = 'C')
-    idx_to_sum = tuple(range(1, L['c'] + 2))
-    py_s_ct = py_s_ct.sum(idx_to_sum).reshape(numobs, -1, order = 'C')
-    
-    py_s_dt = py_s_d.reshape(numobs, *k_1L['d'], order = 'C')
-    idx_to_sum = tuple(range(1, L['d'] + 1))
-    py_s_dt = py_s_dt.sum(idx_to_sum).reshape(numobs, -1, order = 'C')
-    
-    ps_t = w_s_d.reshape(*k_1L['d'], order = 'C')
-    idx_to_sum = tuple(range(L['d']))
-    ps_t = ps_t.sum(idx_to_sum).reshape(-1, order = 'C')[n_axis]
-    
-    den = py_d * py_c
-    den = np.where(den == 0.0, epsilon, den)
-    
-    #pst_yCyD = (py_s_ct[..., n_axis] * py_s_dt * ps_t) / den
-    pst_yCyD = (py_s_ct * py_s_dt * ps_t) / den
-    
-    # Normalization useful ?
-    pst_yCyD_stab = np.where(pst_yCyD == 0.0, epsilon, pst_yCyD)
-    pst_yCyD = pst_yCyD / pst_yCyD_stab.sum(1, keepdims = True)
-    
-    return pst_yCyD
-              
+      
       
 '''
 H = H_c
@@ -554,8 +438,6 @@ pz2_z1s = pz2_z1s_c
 Sc = S_1L['c']
 Lc = L['c']
 '''
-
-import matplotlib.pyplot as plt
 
 
 def E_step_DGMM_c(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1s, Sc, Lc):
@@ -654,41 +536,13 @@ def E_step_DGMM_c(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1s, Sc, Lc):
         e = (np.expand_dims(z1c_s, 1) - t(H_formated @ z2_s, (3, 0, 1, 2)))[..., n_axis]
 
         eeT = e @ t(e, (0, 1, 2, 4, 3))
-        
-        '''
-        print('z1_C', np.median(np.abs(z1c_s)))
-        print('max z1_C', np.max(np.abs(z1c_s)))
-
-        print('H_C', np.median(np.abs(H_formated)))
-        print('max H_C', np.max(np.abs(H_formated)))
-
-        print('z2_s_C', np.median(np.abs(z2_s)))
-        print('max z2_s_C', np.max(np.abs(z2_s)))
-
-        print('e_C', np.median(np.abs(e)))
-        print('max e_C', np.max(np.abs(e)))
-
-        print('------------------------------------------')
-        plt.hist(e.flatten())
-        plt.show()
-        '''
-        
+                
         if l == 0:
             EeeT_ys_l = (pz2_ys[...,n_axis] * eeT).sum(1)
         else:   
             pz1z2_ys = np.expand_dims(pz_ys[l - 1], 2) * pz2_z1s[l][n_axis]
             pz1z2_ys = pz1z2_ys[..., n_axis, n_axis]
             EeeT_ys_l = (pz1z2_ys * eeT[n_axis]).sum((1, 2))
-
-        # Small hack !!
-        #EeeT_ys_l = EeeT_ys_l / ( 0.5 * np.max(np.abs(EeeT_ys_l), keepdims = True))
-
-        #EeeT_ys_l = np.where(EeeT_ys_l >= 10, 10, EeeT_ys_l)
-        #EeeT_ys_l = np.where(EeeT_ys_l <= -10, -10, EeeT_ys_l)
-        
-        #plt.hist(EeeT_ys_l.flatten())
-        #plt.show()
-        
         
         EeeT_ys.append(EeeT_ys_l)
         
@@ -736,8 +590,11 @@ def E_step_DGMM_d(zl1_ys, H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1s, Sd, Ld):
         Ez_ys.append(t(np.mean(zl1_ys, axis = 0), (0, 2, 1))) 
     
     for l in range(Ld):
-        #print(l)
+        
+        #=========================================================
         # Broadcast the quantities to the right shape
+        #=========================================================
+
         z1_s = z_s[l].transpose((0, 2, 1))[..., n_axis]  
         z1_s = np.tile(z1_s, (1, np.prod(k[:l]), 1, 1)) # To recheck when L > 3
 
@@ -797,32 +654,9 @@ def E_step_DGMM_d(zl1_ys, H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1s, Sd, Ld):
                 
         e = (np.expand_dims(z1c_s, 1) - t(H_formated @ z2_s, (3, 0, 1, 2)))[..., n_axis]
         eeT = e @ t(e, (0, 1, 2, 4, 3))
-        
-        '''
-        print('z1_D', np.median(np.abs(z1c_s)))
-        print('H_D', np.median(np.abs(H_formated)))
-        print('z2_s_D', np.median(np.abs(z2_s)))
-        print('e_D', np.median(np.abs(e)))
-        print('max e_D', np.max(np.abs(e)))
-
-        print('------------------------------------------')
-        '''
-        
+                
         EeeT_ys_l = (pz1z2_ys * eeT[n_axis]).sum((1, 2))
-        
-        # Small hack
-        #EeeT_ys_l = EeeT_ys_l / ( 0.5 * np.max(np.abs(EeeT_ys_l), keepdims = True))
-
-        #EeeT_ys_l = np.where(EeeT_ys_l >= 10, 10, EeeT_ys_l)
-        #EeeT_ys_l = np.where(EeeT_ys_l <= -10, -10, EeeT_ys_l)
-        
-        '''
-        plt.hist(E_z2z2T_ys_l.flatten())
-        plt.title('E(z2z2T | y^D, s^D)')
-        plt.show()
-        '''
-        
-        
+                
         EeeT_ys.append(EeeT_ys_l)
     
     return Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys
@@ -862,7 +696,6 @@ def E_step_DGMM_t(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1st, S_1L, L, k_1L):
     kt = k_1L['t']
     
     for l in range(L['t'] - 1):
-        #print(l)
         
         #===============================================
         # Broadcast the quantities to the right shape
@@ -879,11 +712,6 @@ def E_step_DGMM_t(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1st, S_1L, L, k_1L):
         z2_s = np.expand_dims(np.expand_dims(z2_s, 1), 2)
         z2_s = np.tile(z2_s, (1, 1, 1, S_1L['t'][0] // S_1L['t'][l + 1], 1))
 
-
-        #z1_s = np.tile(z1_s, (1, S_1L['c'][0] // S_1L['t'][l], 1, 1)) # To recheck when L > 3
-        #z1c_s = np.tile(zc_s[l], (1, S_1L['c'][0] // S_1L['t'][l], 1))
-        #z2_s = np.tile(z2_s, (1, S_1L['c'][0] // S_1L['t'][l + 1], 1))[..., n_axis] 
-        
         pz1_ys = pz_ys[l][..., n_axis] 
         pz2_ys = pz_ys[l + 1][..., n_axis] 
         pz2_z1s = np.expand_dims(np.expand_dims(pz2_z1st[l], 2), 2)[n_axis]
@@ -896,9 +724,7 @@ def E_step_DGMM_t(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1st, S_1L, L, k_1L):
         H_formated = np.repeat(H_formated, S_1L['t'][l + 1], axis = 0)
         H_formated = H_formated[n_axis, n_axis, n_axis] 
 
-        #H_formated = np.tile(H[l], (np.prod(kc[: L['c'] + l + 1]), 1, 1))
-        #H_formated = np.repeat(H_formated, S_1L['t'][l + 1], axis = 0)[n_axis] 
-        
+
         #===============================================    
         # Compute the expectations
         #===============================================
@@ -927,7 +753,6 @@ def E_step_DGMM_t(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1st, S_1L, L, k_1L):
         #==========================================================
         
         E_z2_ys_l = (pz2_ys * z2_s[n_axis]).sum(1) 
-        #E_z2_ys_l = (pz2_ys * t(z2_s, (0, 1, 3, 2))[n_axis]).sum(1) 
         Ez_ys.append(E_z2_ys_l)
  
         #=========================================================
@@ -955,30 +780,10 @@ def E_step_DGMM_t(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1st, S_1L, L, k_1L):
         e = np.expand_dims(z1c_s, 1) - t(H_formated @ z2_s[..., n_axis], (5, 0, 1, 2, 3, 4))
         e = e[..., n_axis]
         eeT = e @ t(e, (0, 1, 2, 3, 4, 6, 5))
-        
-        '''
-        print('z1_t', np.median(np.abs(z1c_s)))
-        print('H_t', np.median(np.abs(H_formated)))
-        print('z2_s_t', np.median(np.abs(z2_s)))
-        print('e_t', np.median(np.abs(e)))
-        print('max e_t', np.max(np.abs(e)))
-
-        print('------------------------------------------')
-        '''
-        
+                
         eeT = eeT[n_axis]
         EeeT_ys_l = (pz1z2_ys * eeT).sum((1, 2))
-        
-        
-        # Small hack
-        
-        #EeeT_ys_l = EeeT_ys_l / ( 0.5 * np.max(np.abs(EeeT_ys_l), keepdims = True))
-        #EeeT_ys_l = np.where(EeeT_ys_l >= 10, 10, EeeT_ys_l)
-        #EeeT_ys_l = np.where(EeeT_ys_l <= -10, -10, EeeT_ys_l)
-        
-        #plt.hist(EeeT_ys_l.flatten())
-        #plt.show()
-        
+                
         EeeT_ys.append(EeeT_ys_l)
     
     return Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys
@@ -1008,7 +813,7 @@ rh  = r_1L['c']
 
 def M_step_DGMM(Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys, ps_y, H_old, k, L_1Lh, rh):
     ''' 
-    Compute the estimators of eta, Lambda and Psi for all components and all layers
+    Compute the estimators of eta, Lambda and Psi for all components and all layers of both heads
     Ez_ys (list of ndarrays): E(z^{(l)} | y, s) for all (l,s)
     E_z1z2T_ys (list of ndarrays):  E(z^{(l)}z^{(l+1)T} | y, s) 
     EeeT_ys (list of ndarrays): E(z^{(l+1)}z^{(l+1)T} | y, s), 
@@ -1030,8 +835,11 @@ def M_step_DGMM(Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys, ps_y, H_old, k, L_1Lh, r
     psi = []
     
     for l in range(Lh):
-        #print(l)
 
+        #===============================================
+        # Broadcast the quantities to the right shape
+        #===============================================
+        
         Ez1_ys_l = Ez_ys[l].reshape(numobs, *k, rh[l], order = 'C')
         Ez2_ys_l = Ez_ys[l + 1].reshape(numobs, *k, rh[l + 1], order = 'C')
         E_z1z2T_ys_l = E_z1z2T_ys[l].reshape(numobs, *k, rh[l], rh[l + 1], order = 'C')
@@ -1046,21 +854,30 @@ def M_step_DGMM(Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys, ps_y, H_old, k, L_1Lh, r
         den = ps_yl.sum(0)
         den = np.where(den < epsilon, epsilon, den)  
         
+        #===============================================
         # eta estimator
+        #===============================================
+
         eta_num = Ez1_ys_l.sum(idx_to_sum)[..., n_axis] -\
             H_old[l][n_axis] @ Ez2_ys_l.sum(idx_to_sum)[..., n_axis]
         eta_new = (ps_yl * eta_num).sum(0) / den
         
         eta.append(eta_new)
-    
+
+        #===============================================
         # Lambda estimator
+        #===============================================
+
         H_num = E_z1z2T_ys_l.sum(idx_to_sum) - \
             eta_new[n_axis] @ np.expand_dims(Ez2_ys_l.sum(idx_to_sum), 2)
         
         H_new = (ps_yl * H_num  @ pinv(E_z2z2T_ys_l.sum(idx_to_sum))).sum(0) / den 
         H.append(H_new)
 
+        #===============================================
         # Psi estimator
+        #===============================================
+
         psi_new = (ps_yl * EeeT_ys_l.sum(idx_to_sum)).sum(0) / den
         psi.append(psi_new)
 
@@ -1079,7 +896,7 @@ rh  = r_1L['t']
 def M_step_DGMM_t(Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys, \
                   ps_y_c, ps_y_d, pst_yCyD, H_old, S_1L, k_1L, L_1L, L, rh):
     ''' 
-    Compute the estimators of eta, Lambda and Psi for all components and all layers
+    Compute the estimators of eta, Lambda and Psi for all components and all layers of the tail
     Ez_ys (list of ndarrays): E(z^{(l)} | y, s) for all (l,s)
     E_z1z2T_ys (list of ndarrays):  E(z^{(l)}z^{(l+1)T} | y, s) 
     EeeT_ys (list of ndarrays): E(z^{(l+1)}z^{(l+1)T} | y, s), 
@@ -1173,7 +990,11 @@ def M_step_DGMM_t(Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys, \
         H_num = E_z1z2T_yst.sum(idx_to_sum) - \
             eta_new[n_axis] @ np.expand_dims(Ez2_yst.sum(idx_to_sum), 2)
         
-        H_new = (H_num @ pinv(E_z2z2T_yst.sum(idx_to_sum))).sum(0) / den 
+        try:
+            H_new = (H_num @ pinv(E_z2z2T_yst.sum(idx_to_sum), rcond=1e-3)).sum(0) / den 
+        except:
+            print(E_z2z2T_yst.sum(idx_to_sum))
+            raise RuntimeError('Overflow ?')
         H.append(H_new)
 
         # Psi estimator

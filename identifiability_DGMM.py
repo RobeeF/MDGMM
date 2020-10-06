@@ -12,6 +12,8 @@ import autograd.numpy as np
 from autograd.numpy import newaxis as n_axis
 from autograd.numpy import transpose as t
 from autograd.numpy.linalg import cholesky, pinv, eigh
+import warnings
+
 
 def compute_z_moments(w_s, mu_s, sigma_s):
     ''' Compute the first moment and the variance of the latent variable 
@@ -28,7 +30,11 @@ def compute_z_moments(w_s, mu_s, sigma_s):
     Ez1 = (full_paths_proba * mu_s[0]).sum(0, keepdims = True)
     
     var_z1 = E_z1z1T - Ez1 @ t(Ez1, (0,2,1)) 
-    var_z1 = ensure_psd([var_z1])[0] # Numeric stability check
+    try:
+        var_z1 = ensure_psd([var_z1])[0] # Numeric stability check
+    except:
+        #print(var_z1)
+        raise RuntimeError('Var z1 was not psd')
     AT = cholesky(var_z1)
 
     return Ez1, AT
@@ -87,7 +93,10 @@ def identifiable_estim_DDGMM(eta_old, H_old, psi_old, Ez1, AT):
     return eta_new, H_new, psi_new
 
 def head_identifiability(eta, H, psi, w_s):
-    H = diagonal_cond(H, psi)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("error")
+        H = diagonal_cond(H, psi)
+
     mu_s, sigma_s = compute_path_params(eta, H, psi)        
     Ez1, AT = compute_z_moments(w_s, mu_s, sigma_s)
     eta, H, psi = identifiable_estim_DDGMM(eta, H, psi, Ez1, AT)

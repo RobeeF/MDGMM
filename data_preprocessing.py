@@ -109,8 +109,6 @@ def bin_to_bern(Nj, yj_binom, zM_binom):
     n_yk = len(yj_binom) # parameter k of the binomial
     
     # Generate Nj Bernoullis from each binomial and get a (numobsxNj, 1) table
-    print(n_yk)
-    print(Nj)
     u = uniform(size =(n_yk, int(Nj)))
     p = (yj_binom/Nj)[..., n_axis]
     yk_bern = (u > p).astype(int).flatten('A')#[..., n_axis] 
