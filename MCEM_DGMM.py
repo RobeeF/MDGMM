@@ -383,8 +383,64 @@ w_s_c.reshape(*k_1L['c'], order = 'C').sum(0)
 # C'est la mêmeà létape 0 de l'arch minimale en tout cas.
 # Mais s'écarte après...
  
+def fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_c, w_s_d, k_1L, L):
+    '''
+        Compute p(s^L0 | y^C, y^D)
+        pz_s_d = pz_s_c
+    '''
+    
+    # Sur que reshape ne tord pas les chemins ?
+    epsilon = 1E-16
+    numobs = py_zs_c[0].shape[0]
+            
+    # 1st and 2nd term
+    # p(y^h | zt^{(1)}, s^h, Theta) for h in {C, D}.
+    py_zts_c = py_zs_c[L['c']] # shape = (numobs, Mt, Sc)
+    Mt = py_zts_c.shape[1] # Nb of MC points of the first tail layer
+    py_zts_c = py_zts_c.reshape(numobs, Mt, np.prod(k_1L['c'][:L['c'] + 1]),\
+                                np.prod(k_1L['t']), order = 'C')
+    
+    py_zts_d = py_zs_d[L['d']] # shape = (numobs, Mt, Sd)
+    # shape = (numobs, Mt, k['d'], S['t'])
+    py_zts_d = py_zts_d.reshape(numobs, Mt, np.prod(k_1L['d'][:L['d']]),\
+                                np.prod(k_1L['t']), order = 'C')
+    
+    # 3rd term
+    # p(zt^{(1)} | s^t, Theta) 
+    pz_s_t = pz_s_d[L['d']]    
+    pz_s_t = pz_s_t.reshape(Mt, *k_1L['d'], order = 'C')
+    # Quantities are tiled hence take the mean of the quantity not the sum
+    idx_to_mean = tuple(range(1, L['d'] + 1)) 
+    pz_s_t = pz_s_t.mean(idx_to_mean).reshape(Mt, -1, order = 'C')[n_axis]
 
-def fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_d, k_1L, L):
+    # 4th term
+    # p(s^D | Theta) 
+    ps_d = w_s_d.reshape(*k_1L['d'], order = 'C')
+    idx_to_sum = tuple(range(L['d'], L['d'] + L['t']))
+    ps_d = ps_d.sum(idx_to_sum).reshape(-1, order = 'C')[n_axis, n_axis, ..., n_axis] 
+    
+    
+    # sum_s^C p(y^C | z^t, s^C, s^t) p(s^C, s^t)
+    ps_ct = w_s_c.reshape(np.prod(k_1L['c'][:L['c'] + 1]),\
+                                np.prod(k_1L['t']), order = 'C')
+    pyst_zt_c = (py_zts_c * ps_ct[n_axis, n_axis]).sum(2) 
+    
+    # sum_s^D p(y^C | z^t, s^D, s^t) p(s^D)
+    pysD_ztst_d = (py_zts_d * ps_d).sum(2)
+    
+    # Keep dims ?
+    
+    pst_yCyD = (pyst_zt_c * pysD_ztst_d * pz_s_t).sum(1)
+
+    # Normalization 
+    norm_cste = np.where(pst_yCyD == 0.0, epsilon, pst_yCyD) 
+    pst_yCyD = pst_yCyD / norm_cste.sum(1, keepdims = True)
+
+    return pst_yCyD
+    
+
+
+def fst_yCyD_old(py_zs_c, py_zs_d, pz_s_d, w_s_d, k_1L, L):
 
     epsilon = 1E-16
     numobs = py_zs_c[0].shape[0]
@@ -991,7 +1047,7 @@ def M_step_DGMM_t(Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys, \
             eta_new[n_axis] @ np.expand_dims(Ez2_yst.sum(idx_to_sum), 2)
         
         try:
-            H_new = (H_num @ pinv(E_z2z2T_yst.sum(idx_to_sum), rcond=1e-3)).sum(0) / den 
+            H_new = (H_num @ pinv(E_z2z2T_yst.sum(idx_to_sum), rcond=1e-2)).sum(0) / den 
         except:
             print(E_z2z2T_yst.sum(idx_to_sum))
             raise RuntimeError('Overflow ?')

@@ -89,7 +89,7 @@ dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc)
 #===========================================# 
 
 r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
-k = {'c': [1], 'd': [2], 't': [n_clusters,  1]}
+k = {'c': [1], 'd': [1], 't': [n_clusters,  1]}
 
 seed = 1
 init_seed = 2

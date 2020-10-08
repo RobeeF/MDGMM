@@ -103,7 +103,7 @@ dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc)
 #===========================================# 
 n_clusters = 2
 r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
-k = {'c': [1], 'd': [2], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 seed = 1
 init_seed = 2
@@ -355,7 +355,7 @@ numobs = len(y)
 k = out['best_k']
 eps = 1E-05
 it = 30
-maxstep = 100
+maxstep = 300
 
 nb_trials= 30
 mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'silhouette'])

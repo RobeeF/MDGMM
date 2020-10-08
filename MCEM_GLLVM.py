@@ -176,11 +176,13 @@ def bin_params_GLLVM(y_bin, nj_bin, lambda_bin_old, ps_y, pzl1_ys, zl1_s, AT,\
             linear_constraint = LinearConstraint(lcs, np.full(nb_constraints, 0), \
                                              np.full(nb_constraints, 0), keep_feasible = True)
         
+                
             opt = minimize(binom_loglik_j, lambda_bin_old[j] , \
                     args = (y_bin[:,j], zl1_s, S0, ps_y, pzl1_ys, nj_bin[j]), 
                            tol = tol, method='trust-constr',  jac = bin_grad_j, \
                            constraints = linear_constraint, hess = '2-point', \
                                options = {'maxiter': maxstep})
+            
                     
         else: # Unconstrained columns
             opt = minimize(binom_loglik_j, lambda_bin_old[j], \
@@ -190,7 +192,7 @@ def bin_params_GLLVM(y_bin, nj_bin, lambda_bin_old, ps_y, pzl1_ys, zl1_s, AT,\
 
         res = opt.x                
         if not(opt.success):
-            res = lambda_bin_old[j]
+            res = np.zeros_like(lambda_bin_old[j]) #lambda_bin_old[j]
             warnings.warn('One of the binomial optimisations has failed', RuntimeWarning)
             
         new_lambda_bin.append(deepcopy(res))  
@@ -256,6 +258,7 @@ def ord_params_GLLVM(y_ord, nj_ord, lambda_ord_old, ps_y, pzl1_ys, zl1_s, AT,\
         
         res = opt.x
         if not(opt.success): # If the program fail, keep the old estimate as value
+            print(opt)
             res = lambda_ord_old[j]
             warnings.warn('One of the ordinal optimisations has failed', RuntimeWarning)
                  

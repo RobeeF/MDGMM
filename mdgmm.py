@@ -150,164 +150,165 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         # Draw from f(z^{l} | s, Theta) for both heads and tail
         #=====================================================================  
         
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("error")
-            mu_s_c, sigma_s_c = compute_path_params(eta_c, H_c, psi_c)
-            sigma_s_c = ensure_psd(sigma_s_c)
-            
-            mu_s_d, sigma_s_d = compute_path_params(eta_d, H_d, psi_d)
-            sigma_s_d = ensure_psd(sigma_s_d)
-                    
-            z_s_c, zc_s_c, z_s_d, zc_s_d = draw_z_s_all_network(mu_s_c, sigma_s_c,\
-                                mu_s_d, sigma_s_d, yc, eta_c, eta_d, S_1L, L, M)
-            
-            #========================================================================
-            # Draw from f(z^{l+1} | z^{l}, s, Theta) for l >= 1
-            #========================================================================
-            
-            # Create wrapper as before and after
-            chsi_c = compute_chsi(H_c, psi_c, mu_s_c, sigma_s_c)
-            chsi_c = ensure_psd(chsi_c)
-            rho_c = compute_rho(eta_c, H_c, psi_c, mu_s_c, sigma_s_c, zc_s_c, chsi_c)
-            
-            chsi_d = compute_chsi(H_d, psi_d, mu_s_d, sigma_s_d)
-            chsi_d = ensure_psd(chsi_d)
-            rho_d = compute_rho(eta_d, H_d, psi_d, mu_s_d, sigma_s_d, zc_s_d, chsi_d)
-    
-    
-            # In the following z2 and z1 will denote z^{l+1} and z^{l} respectively
-            z2_z1s_c, z2_z1s_d = draw_z2_z1s_network(chsi_c, chsi_d, rho_c, \
-                                                     rho_d, M, r_1L, L)
-    
-            #=======================================================================
-            # Compute the p(y^D| z1) for all discrete variables
-            #=======================================================================
-            
-            py_zl1_d = fy_zl1(lambda_bin, y_bin, nj_bin, lambda_ord, y_ord, nj_ord, z_s_d[0])
-            
-            #========================================================================
-            # Draw from p(z1 | y, s) proportional to p(y | z1) * p(z1 | s) for all s
-            #========================================================================
-                    
-            zl1_ys_d = draw_zl1_ys(z_s_d, py_zl1_d, M['d'])
-                    
-            #####################################################################################
-            ################################# E step ############################################
-            #####################################################################################
-            
-            #=====================================================================
-            # Compute quantities necessary for E steps of both heads and tail
-            #=====================================================================
-            
-            # Discrete head quantities
-            pzl1_ys_d, ps_y_d, py_d = E_step_GLLVM(z_s_d[0], mu_s_d[0], sigma_s_d[0], w_s_d, py_zl1_d)        
-            py_s_d = ps_y_d * py_d / w_s_d[n_axis]
-            
-            # Continuous head quantities
-            ps_y_c, py_s_c, py_c = continuous_lik(yc, mu_s_c[0], sigma_s_c[0], w_s_c)
-            
-            pz_s_d = fz_s(z_s_d, mu_s_d, sigma_s_d) 
-            pz_s_c = fz_s(z_s_c, mu_s_c, sigma_s_c) 
-            
-            #=====================================================================
-            # Compute p(z^{(l)}| s, y). Equation (5) of the paper
-            #=====================================================================
-            
-            # Compute pz2_z1s_d and pz2_z1s_d for the tail indices whereas it is useless
-            
-            pz2_z1s_d = fz2_z1s(t(pzl1_ys_d, (1, 0, 2)), z2_z1s_d, chsi_d, rho_d, S_1L['d'])
-            pz_ys_d = fz_ys(t(pzl1_ys_d, (1, 0, 2)), pz2_z1s_d)
-              
-            pz2_z1s_c = fz2_z1s([], z2_z1s_c, chsi_c, rho_c, S_1L['c'])
-            pz_ys_c = fz_ys([], pz2_z1s_c)
-            
-            pz2_z1s_t = fz2_z1s([], z2_z1s_c[bar_L['c']:], chsi_c[bar_L['c']:], \
-                                rho_c[bar_L['c']:], S_1L['t'])
-    
-            # Junction layer computations
-            # Compute p(zC |s)
-            py_zs_d = fy_zs(pz_ys_d, py_s_d) 
-            py_zs_c = fy_zs(pz_ys_c, py_s_c)
-     
-            # Compute p(zt | yC, yD, sC, SD)        
-            pzt_yCyDs = fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, M, S_1L, L)
-    
-            #=====================================================================
-            # Compute MFA expectations
-            #=====================================================================
-            
-            # Discrete head. 
-            Ez_ys_d, E_z1z2T_ys_d, E_z2z2T_ys_d, EeeT_ys_d = \
-                E_step_DGMM_d(zl1_ys_d, H_d, z_s_d, zc_s_d, z2_z1s_d, pz_ys_d,\
-                            pz2_z1s_d, S_1L['d'], L['d'])
-            
-                
-            # Continuous head
-            Ez_ys_c, E_z1z2T_ys_c, E_z2z2T_ys_c, EeeT_ys_c = \
-                E_step_DGMM_c(H_c, z_s_c, zc_s_c, z2_z1s_c, pz_ys_c,\
-                              pz2_z1s_c, S_1L['c'], L['c'])
-    
-    
-            # Junction layers
-            Ez_ys_t, E_z1z2T_ys_t, E_z2z2T_ys_t, EeeT_ys_t = \
-                E_step_DGMM_t(H_c[bar_L['c']:], \
-                z_s_c[bar_L['c']:], zc_s_c[bar_L['c']:], z2_z1s_c[bar_L['c']:],\
-                    pzt_yCyDs, pz2_z1s_t, S_1L, L, k_1L)  
-            
-            # Error here for the first two terms: p(y^h | z^t, s^C) != p(y^h | z^t, s^{1C:L})
-            pst_yCyD = fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_d, k_1L, L)                                  
-                   
-            ###########################################################################
-            ############################ M step #######################################
-            ###########################################################################
-    
-            #=======================================================
-            # Compute DGMM Parameters 
-            #=======================================================
-                
-            # Discrete head
-            w_s_d = np.mean(ps_y_d, axis = 0)      
-            eta_d_barL, H_d_barL, psi_d_barL = M_step_DGMM(Ez_ys_d, E_z1z2T_ys_d, E_z2z2T_ys_d, \
-                                            EeeT_ys_d, ps_y_d, H_d, k_1L['d'][:-1],\
-                                                L_1L['d'], r_1L['d'])
-             
-            # Add dispatching function here
-            eta_d[:bar_L['d']] = eta_d_barL
-            H_d[:bar_L['d']] = H_d_barL
-            psi_d[:bar_L['d']] = psi_d_barL
-                    
-            # Continuous head
-            w_s_c = np.mean(ps_y_c, axis = 0)  
-            eta_c_barL, H_c_barL, psi_c_barL = M_step_DGMM(Ez_ys_c, E_z1z2T_ys_c, E_z2z2T_ys_c, \
-                                            EeeT_ys_c, ps_y_c, H_c, k_1L['c'][:-1],\
-                                                L_1L['c'] + 1, r_1L['c'])
-            
-            eta_c[:bar_L['c']] = eta_c_barL
-            H_c[:bar_L['c']] = H_c_barL
-            psi_c[:bar_L['c']] = psi_c_barL
-                        
-    
-            # Common tail
-            eta_t, H_t, psi_t, Ezst_y = M_step_DGMM_t(Ez_ys_t, E_z1z2T_ys_t, E_z2z2T_ys_t, \
-                                            EeeT_ys_t, ps_y_c, ps_y_d, pst_yCyD, \
-                                                H_c[bar_L['c']:], S_1L, k_1L, \
-                                                L_1L, L, r_1L['t'])  
-                
-            eta_d[bar_L['d']:] = eta_t
-            H_d[bar_L['d']:] = H_t
-            psi_d[bar_L['d']:] = psi_t            
-    
-            eta_c[bar_L['c']:] = eta_t
-            H_c[bar_L['c']:] = H_t
-            psi_c[bar_L['c']:] = psi_t  
-                             
-            #=======================================================
-            # Identifiability conditions
-            #=======================================================
-    
-            eta_d, H_d, psi_d, AT_d = head_identifiability(eta_d, H_d, psi_d, w_s_d)
-            eta_c, H_c, psi_c, AT_c = head_identifiability(eta_c, H_c, psi_c, w_s_c)
+        mu_s_c, sigma_s_c = compute_path_params(eta_c, H_c, psi_c)
+        sigma_s_c = ensure_psd(sigma_s_c)
         
+        mu_s_d, sigma_s_d = compute_path_params(eta_d, H_d, psi_d)
+        sigma_s_d = ensure_psd(sigma_s_d)
+                
+        z_s_c, zc_s_c, z_s_d, zc_s_d = draw_z_s_all_network(mu_s_c, sigma_s_c,\
+                            mu_s_d, sigma_s_d, yc, eta_c, eta_d, S_1L, L, M)
+        
+        #========================================================================
+        # Draw from f(z^{l+1} | z^{l}, s, Theta) for l >= 1
+        #========================================================================
+        
+        # Create wrapper as before and after
+        chsi_c = compute_chsi(H_c, psi_c, mu_s_c, sigma_s_c)
+        chsi_c = ensure_psd(chsi_c)
+        rho_c = compute_rho(eta_c, H_c, psi_c, mu_s_c, sigma_s_c, zc_s_c, chsi_c)
+        
+        chsi_d = compute_chsi(H_d, psi_d, mu_s_d, sigma_s_d)
+        chsi_d = ensure_psd(chsi_d)
+        rho_d = compute_rho(eta_d, H_d, psi_d, mu_s_d, sigma_s_d, zc_s_d, chsi_d)
+
+
+        # In the following z2 and z1 will denote z^{l+1} and z^{l} respectively
+        z2_z1s_c, z2_z1s_d = draw_z2_z1s_network(chsi_c, chsi_d, rho_c, \
+                                                 rho_d, M, r_1L, L)
+
+        #=======================================================================
+        # Compute the p(y^D| z1) for all discrete variables
+        #=======================================================================
+        
+        py_zl1_d = fy_zl1(lambda_bin, y_bin, nj_bin, lambda_ord, y_ord, nj_ord, z_s_d[0])
+        
+        #========================================================================
+        # Draw from p(z1 | y, s) proportional to p(y | z1) * p(z1 | s) for all s
+        #========================================================================
+                
+        zl1_ys_d = draw_zl1_ys(z_s_d, py_zl1_d, M['d'])
+                
+        #####################################################################################
+        ################################# E step ############################################
+        #####################################################################################
+        
+        #=====================================================================
+        # Compute quantities necessary for E steps of both heads and tail
+        #=====================================================================
+        
+        # Discrete head quantities
+        pzl1_ys_d, ps_y_d, py_d = E_step_GLLVM(z_s_d[0], mu_s_d[0], sigma_s_d[0], w_s_d, py_zl1_d)        
+        py_s_d = ps_y_d * py_d / w_s_d[n_axis]
+        
+        # Continuous head quantities
+        ps_y_c, py_s_c, py_c = continuous_lik(yc, mu_s_c[0], sigma_s_c[0], w_s_c)
+        #print('log py^C', np.sum(np.log(py_c)))
+        #print('log py^D', np.sum(np.log(py_d)))
+
+        
+        pz_s_d = fz_s(z_s_d, mu_s_d, sigma_s_d) 
+        pz_s_c = fz_s(z_s_c, mu_s_c, sigma_s_c) 
+        
+        #=====================================================================
+        # Compute p(z^{(l)}| s, y). Equation (5) of the paper
+        #=====================================================================
+        
+        # Compute pz2_z1s_d and pz2_z1s_d for the tail indices whereas it is useless
+        
+        pz2_z1s_d = fz2_z1s(t(pzl1_ys_d, (1, 0, 2)), z2_z1s_d, chsi_d, rho_d, S_1L['d'])
+        pz_ys_d = fz_ys(t(pzl1_ys_d, (1, 0, 2)), pz2_z1s_d)
+          
+        pz2_z1s_c = fz2_z1s([], z2_z1s_c, chsi_c, rho_c, S_1L['c'])
+        pz_ys_c = fz_ys([], pz2_z1s_c)
+        
+        pz2_z1s_t = fz2_z1s([], z2_z1s_c[bar_L['c']:], chsi_c[bar_L['c']:], \
+                            rho_c[bar_L['c']:], S_1L['t'])
+
+        # Junction layer computations
+        # Compute p(zC |s)
+        py_zs_d = fy_zs(pz_ys_d, py_s_d) 
+        py_zs_c = fy_zs(pz_ys_c, py_s_c)
+ 
+        # Compute p(zt | yC, yD, sC, SD)        
+        pzt_yCyDs = fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, M, S_1L, L)
+
+        #=====================================================================
+        # Compute MFA expectations
+        #=====================================================================
+        
+        # Discrete head. 
+        Ez_ys_d, E_z1z2T_ys_d, E_z2z2T_ys_d, EeeT_ys_d = \
+            E_step_DGMM_d(zl1_ys_d, H_d, z_s_d, zc_s_d, z2_z1s_d, pz_ys_d,\
+                        pz2_z1s_d, S_1L['d'], L['d'])
+        
+            
+        # Continuous head
+        Ez_ys_c, E_z1z2T_ys_c, E_z2z2T_ys_c, EeeT_ys_c = \
+            E_step_DGMM_c(H_c, z_s_c, zc_s_c, z2_z1s_c, pz_ys_c,\
+                          pz2_z1s_c, S_1L['c'], L['c'])
+
+
+        # Junction layers
+        Ez_ys_t, E_z1z2T_ys_t, E_z2z2T_ys_t, EeeT_ys_t = \
+            E_step_DGMM_t(H_c[bar_L['c']:], \
+            z_s_c[bar_L['c']:], zc_s_c[bar_L['c']:], z2_z1s_c[bar_L['c']:],\
+                pzt_yCyDs, pz2_z1s_t, S_1L, L, k_1L)  
+        
+        # Error here for the first two terms: p(y^h | z^t, s^C) != p(y^h | z^t, s^{1C:L})
+        pst_yCyD = fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_c, w_s_d, k_1L, L)                                  
+               
+        ###########################################################################
+        ############################ M step #######################################
+        ###########################################################################
+
+        #=======================================================
+        # Compute DGMM Parameters 
+        #=======================================================
+            
+        # Discrete head
+        w_s_d = np.mean(ps_y_d, axis = 0)      
+        eta_d_barL, H_d_barL, psi_d_barL = M_step_DGMM(Ez_ys_d, E_z1z2T_ys_d, E_z2z2T_ys_d, \
+                                        EeeT_ys_d, ps_y_d, H_d, k_1L['d'][:-1],\
+                                            L_1L['d'], r_1L['d'])
+         
+        # Add dispatching function here
+        eta_d[:bar_L['d']] = eta_d_barL
+        H_d[:bar_L['d']] = H_d_barL
+        psi_d[:bar_L['d']] = psi_d_barL
+                
+        # Continuous head
+        w_s_c = np.mean(ps_y_c, axis = 0)  
+        eta_c_barL, H_c_barL, psi_c_barL = M_step_DGMM(Ez_ys_c, E_z1z2T_ys_c, E_z2z2T_ys_c, \
+                                        EeeT_ys_c, ps_y_c, H_c, k_1L['c'][:-1],\
+                                            L_1L['c'] + 1, r_1L['c'])
+        
+        eta_c[:bar_L['c']] = eta_c_barL
+        H_c[:bar_L['c']] = H_c_barL
+        psi_c[:bar_L['c']] = psi_c_barL
+                    
+
+        # Common tail
+        eta_t, H_t, psi_t, Ezst_y = M_step_DGMM_t(Ez_ys_t, E_z1z2T_ys_t, E_z2z2T_ys_t, \
+                                        EeeT_ys_t, ps_y_c, ps_y_d, pst_yCyD, \
+                                            H_c[bar_L['c']:], S_1L, k_1L, \
+                                            L_1L, L, r_1L['t'])  
+            
+        eta_d[bar_L['d']:] = eta_t
+        H_d[bar_L['d']:] = H_t
+        psi_d[bar_L['d']:] = psi_t            
+
+        eta_c[bar_L['c']:] = eta_t
+        H_c[bar_L['c']:] = H_t
+        psi_c[bar_L['c']:] = psi_t  
+                         
+        #=======================================================
+        # Identifiability conditions
+        #=======================================================
+
+        eta_d, H_d, psi_d, AT_d = head_identifiability(eta_d, H_d, psi_d, w_s_d)
+        eta_c, H_c, psi_c, AT_c = head_identifiability(eta_c, H_c, psi_c, w_s_c)
+    
         #=======================================================
         # Compute GLLVM Parameters
         #=======================================================
