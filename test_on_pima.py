@@ -89,7 +89,7 @@ dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc)
 #===========================================# 
 
 r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
-k = {'c': [1], 'd': [1], 't': [n_clusters,  1]}
+k = {'c': [1], 'd': [2], 't': [n_clusters,  1]}
 
 seed = 1
 init_seed = 2
@@ -97,6 +97,12 @@ init_seed = 2
 eps = 1E-05
 it = 15
 maxstep = 100
+
+dtype = {y.columns[j]: np.float64 if (var_distrib[j] != 'bernoulli') & \
+        (var_distrib[j] != 'categorical') else np.str for j in range(p_new)}
+
+y = y.astype(dtype, copy=True)
+
 
 # MCA init
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)

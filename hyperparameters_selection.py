@@ -96,7 +96,7 @@ def is_min_architecture_reached(k, r, n_clusters):
 
         for l in range(Lh):
             # If all k >= 2
-            if k[h][l] > 2:
+            if k[h][l] > 1:
                 is_head_k_min[h] = False
             
             # The first dimension of the continuous dimension is imposed

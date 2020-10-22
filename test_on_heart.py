@@ -139,7 +139,7 @@ warnings.simplefilter('ignore')
 '''
 
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
-            maxstep, seed, perform_selec = False)
+            maxstep, seed, perform_selec = True)
 m, pred = misc(labels_oh, out['classes'], True) 
 print(m)
 print(confusion_matrix(labels_oh, pred))
@@ -336,11 +336,12 @@ mca_mdgmm_res.to_csv(res_folder + '/mca_mdgmm_res.csv')
 # r {'d': [4], 't': [3, 1], 'c': [5]}
 # k {'d': [2], 't': [2, 1], 'c': [1]}
 #============================================
+res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/heart'
 
 # First find the best architecture 
 numobs = len(y)
 r = {'c': [nb_cont], 'd': [5], 't': [4, 3]}
-k = {'c': [1], 'd': [4], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 eps = 1E-05
 it = 30
@@ -390,8 +391,9 @@ mdgmm_res.mean().max()
 
 mdgmm_res.std()
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_correct.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_kd1_autoselec.csv')
 
+mdgmm_res = pd.read_csv(res_folder + '/mdgmm_res_kd1_autoselec.csv')
 
 #=======================================================================
 # Performance measure : Finding the best specification for other algos

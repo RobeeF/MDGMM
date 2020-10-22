@@ -94,7 +94,7 @@ dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc)
 
 n_clusters = 2
 r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
-k = {'c': [1], 'd': [2], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 seed = 1
 init_seed = 2
@@ -322,6 +322,7 @@ mca_mdgmm_res.to_csv(res_folder + '/mca_mdgmm_res.csv')
 # r {'d': [4], 't': [2, 1], 'c': [6]}
 # k {'d': [2], 't': [2, 1], 'c': [1]}
 #============================================
+res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/aus_credit'
 
 # First find the best architecture 
 numobs = len(y)
@@ -376,7 +377,7 @@ mdgmm_res.mean()
 mdgmm_res.std()
 
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_correc.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_k1D.csv')
 
 #=======================================================================
 # Performance measure : Finding the best specification for other algos

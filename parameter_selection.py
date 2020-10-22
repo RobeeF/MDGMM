@@ -322,6 +322,7 @@ def k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer, n_clusters):
     
             other_layers_indices = tuple(set(range(Lh + Lt)) - set([l]))
             components_proba = w.sum(other_layers_indices)
+            print('k of the head', h, '=', components_proba)
             comp_kept = np.where(components_proba > PROBA_THRESHOLD)[0]
             comp_kept = np.sort(comp_kept)
             

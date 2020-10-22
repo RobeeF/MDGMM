@@ -292,7 +292,7 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     # Check input = False to remove
     mca = prince.MCA(n_components = r['d'][0], n_iter=3, copy=True,\
                      check_input=False, engine='auto', random_state = seed)
-    z1D = mca.fit_transform(yd).values
+    z1D = mca.fit_transform(yd.astype(str)).values
         
     # Be careful: The first z^c is the continuous data whether the first 
     # z^d is the MCA transformed data.

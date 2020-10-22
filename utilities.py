@@ -7,6 +7,7 @@ Created on Wed Mar  4 19:26:07 2020
 
 from copy import deepcopy
 import autograd.numpy as np
+from mpl_toolkits.mplot3d import Axes3D
 
 from autograd.numpy.linalg import pinv
 from autograd.numpy import newaxis as n_axis
