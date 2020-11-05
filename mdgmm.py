@@ -21,7 +21,7 @@ from MCEM_DGMM import fz2_z1s, fz_ys,E_step_DGMM_d, M_step_DGMM,\
     M_step_DGMM_t, fst_yCyD
 
 from MCEM_GLLVM import draw_zl1_ys, fy_zl1, E_step_GLLVM, \
-        bin_params_GLLVM, ord_params_GLLVM
+        bin_params_GLLVM, ord_params_GLLVM, categ_params_GLLVM
   
 from hyperparameters_selection import M_growth, look_for_simpler_network, \
     is_min_architecture_reached
@@ -43,7 +43,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     
     ''' Fit a Generalized Linear Mixture of Latent Variables Model (GLMLVM)
     
-    y (numobs x p ndarray): The observations containing categorical variables
+    y (numobs x p ndarray): The observations containing mixed variables
     n_clusters (int): The number of clusters to look for in the data
     r (list): The dimension of latent variables through the first 2 layers
     k (list): The number of components of the latent Gaussian mixture layers
@@ -79,7 +79,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     #====================================================
         
     eta_c, eta_d, H_c, H_d, psi_c, psi_d = dispatch_dgmm_init(init)
-    lambda_bin, lambda_ord = dispatch_gllvm_init(init)
+    lambda_bin, lambda_ord, lambda_categ = dispatch_gllvm_init(init)
     w_s_c, w_s_d = dispatch_paths_init(init)
     
     numobs = len(y)
@@ -105,6 +105,10 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     nj_ord = nj_ord.astype(int)
     nb_ord = len(nj_ord)
     
+    y_categ = y[:, var_distrib == 'categorical']
+    nj_categ = nj[var_distrib == 'categorical'].astype(int)
+    nb_categ = len(nj_categ)    
+    
     yc = y[:, var_distrib == 'continuous'] 
     
     ss = StandardScaler()
@@ -118,7 +122,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     
     M = M_growth(1, r_1L, numobs) 
 
-    if nb_bin + nb_ord == 0: # Create the InputError class and change this
+    if nb_bin + nb_ord + nb_categ == 0: # Create the InputError class and change this
         raise ValueError('Input does not contain discrete variables,\
                          consider using a regular DGMM')
     if nb_cont == 0: # Create the InputError class and change this
@@ -181,7 +185,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         # Compute the p(y^D| z1) for all discrete variables
         #=======================================================================
         
-        py_zl1_d = fy_zl1(lambda_bin, y_bin, nj_bin, lambda_ord, y_ord, nj_ord, z_s_d[0])
+        py_zl1_d = fy_zl1(lambda_bin, y_bin, nj_bin, lambda_ord, y_ord, nj_ord,\
+                          lambda_categ, y_categ, nj_categ, z_s_d[0])
         
         #========================================================================
         # Draw from p(z1 | y, s) proportional to p(y | z1) * p(z1 | s) for all s
@@ -321,6 +326,9 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
                  
         lambda_ord = ord_params_GLLVM(y_ord, nj_ord, lambda_ord, ps_y_d, \
                     pzl1_ys_d, z_s_d[0], AT_d, tol = tol, maxstep = maxstep)
+            
+        lambda_categ = categ_params_GLLVM(y_categ, nj_categ, lambda_categ, ps_y_d,\
+                    pzl1_ys_d, z_s_d[0], AT_d, tol = tol, maxstep = maxstep)
 
         ###########################################################################
         ################## Clustering parameters updating #########################
@@ -405,17 +413,14 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         ###########################################################################
         ######################## Parameter selection  #############################
         ###########################################################################
-        
-        #if n_clusters == 'multi':
-            #perform_selec = False
-            
+                    
         min_nb_clusters = 2
         is_not_min_specif = not(is_min_architecture_reached(k, r, min_nb_clusters))
         
         if look_for_simpler_network(it_num) & perform_selec & is_not_min_specif:
             
-            # Select only Lt for the moment and not Ld and Lc for the layers
-            r_to_keep = r_select(y_bin, y_ord, yc, zl1_ys_d,\
+            # To add: selection according to categ
+            r_to_keep = r_select(y_bin, y_ord, y_categ, yc, zl1_ys_d,\
                                  z2_z1s_d[:bar_L['d']], w_s_d, z2_z1s_c[:bar_L['c']],
                                  z2_z1s_c[bar_L['c']:], n_clusters)
             
@@ -437,7 +442,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
                                        seed = None)
                 
                 eta_c, eta_d, H_c, H_d, psi_c, psi_d = dispatch_dgmm_init(init)
-                lambda_bin, lambda_ord = dispatch_gllvm_init(init)
+                lambda_bin, lambda_ord, lambda_categ = dispatch_gllvm_init(init)
                 w_s_c, w_s_d = dispatch_paths_init(init)
                   
                 # *_1L standsds for quantities going through all the network (head + tail)
@@ -477,7 +482,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
                 eta_c, eta_d, H_c, H_d, psi_c, psi_d = dgmm_coeff_selection(eta_c,\
                             H_c, psi_c, eta_d, H_d, psi_d, L, r_to_keep, k_to_keep)
                     
-                lambda_bin, lambda_ord = gllvm_coeff_selection(lambda_bin, lambda_ord, r, r_to_keep)
+                lambda_bin, lambda_ord, lambda_categ = gllvm_coeff_selection(lambda_bin, lambda_ord,\
+                                                               lambda_categ, r, r_to_keep)
                 
                 w_s_c, w_s_d = path_proba_selection(w_s_c, w_s_d, k, k_to_keep, new_Lt)
                 

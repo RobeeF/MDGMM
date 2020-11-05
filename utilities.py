@@ -296,8 +296,9 @@ def dispatch_dgmm_init(init):
 def dispatch_gllvm_init(init):
     lambda_bin = deepcopy(init['lambda_bin'])
     lambda_ord = deepcopy(init['lambda_ord'])
+    lambda_categ = deepcopy(init['lambda_categ'])
     
-    return lambda_bin, lambda_ord
+    return lambda_bin, lambda_ord, lambda_categ
 
 def dispatch_paths_init(init):
     w_s_c = deepcopy(init['c']['w_s']) 

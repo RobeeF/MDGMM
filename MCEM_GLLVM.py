@@ -6,8 +6,8 @@ Created on Tue May 19 12:51:26 2020
 """
 
 from lik_functions import ord_loglik_j, log_py_zM_ord, \
-            log_py_zM_bin, binom_loglik_j
-from lik_gradients import ord_grad_j, bin_grad_j
+            log_py_zM_bin, binom_loglik_j, log_py_zM_categ, categ_loglik_j
+from lik_gradients import ord_grad_j, bin_grad_j, categ_grad_j
 
 from scipy.optimize import minimize
 from scipy.optimize import LinearConstraint
@@ -57,7 +57,8 @@ def draw_zl1_ys(z_s, py_zl1, M):
 # E Step functions
 #=============================================================================
 
-def fy_zl1(lambda_bin, y_bin, nj_bin, lambda_ord, y_ord, nj_ord, zl1_s):
+def fy_zl1(lambda_bin, y_bin, nj_bin, lambda_ord, y_ord, nj_ord, lambda_categ,\
+           y_categ, nj_categ, zl1_s):
     ''' Compute log p(y | z1) = sum_{s= 1}^S[0] p(y, s| z1) as in Cagnone and 
     Viroli (2014)
     lambda_bin (nb_bin x (1 + r1) nd-array): The binomial coefficients
@@ -76,6 +77,7 @@ def fy_zl1(lambda_bin, y_bin, nj_bin, lambda_ord, y_ord, nj_ord, zl1_s):
     
     nb_ord = len(nj_ord)
     nb_bin = len(nj_bin)
+    nb_categ = len(nj_categ)
 
      
     log_py_zl1 = np.zeros((M0, numobs, S0), dtype = np.float) # l1 standing for the first layer
@@ -85,7 +87,9 @@ def fy_zl1(lambda_bin, y_bin, nj_bin, lambda_ord, y_ord, nj_ord, zl1_s):
     
     if nb_ord: # Then the ordinal variables 
         log_py_zl1 += log_py_zM_ord(lambda_ord, y_ord, zl1_s, S0, nj_ord)[:,:,:,0] 
-    
+
+    if nb_categ:
+        log_py_zl1 += log_py_zM_categ(lambda_categ, y_categ, zl1_s, S0, nj_categ) 
     
     py_zl1 = np.exp(log_py_zl1)
     py_zl1 = np.where(py_zl1 == 0, 1E-50, py_zl1)
@@ -268,4 +272,56 @@ def ord_params_GLLVM(y_ord, nj_ord, lambda_ord_old, ps_y, pzl1_ys, zl1_s, AT,\
         new_lambda_ord.append(new_lambda_ord_j)
     
     return new_lambda_ord
+
+
+def categ_params_GLLVM(y_categ, nj_categ, lambda_categ_old, ps_y, pzl1_ys, zl1_s, AT,\
+                     tol = 1E-5, maxstep = 100):
+    ''' Determine the GLLVM coefficients related to categ coefficients by 
+    optimizing each column coefficients separately.
+    y_categ (list of numobs x nb_categ nd-array): The categorical data
+    nj_categ (list of int): The number of modalities for each categorical variable
+    lambda_categ_old (list of nb_categ_j x (nj_categ + r1) elements): The categorical coefficients
+                                                        of the previous iteration
+    ps_y ((numobs, S) nd-array): p(s | y) for all s in Omega
+    pzl1_ys (nd-array): p(z1 | y, s)
+    zl1_s ((M1, r1, s1) nd-array): z1 | s 
+    AT ((r1 x r1) nd-array): Var(z1)^{-1/2}
+    tol (int): Control when to stop the optimisation process
+    maxstep (int): The maximum number of optimization step.
+    ----------------------------------------------------------------------
+    returns (list of nb_ord_j x (nj_ord + r1) elements): The new ordinal coefficients
+    '''
+    #****************************
+    # Categorical link parameters
+    #****************************  
+    
+    r0 = zl1_s.shape[1] 
+    S0 = zl1_s.shape[2] 
+    nb_categ = len(nj_categ)
+    
+    new_lambda_categ = []
+    
+    for j in range(nb_categ):
+        enc = OneHotEncoder(categories='auto')
+        y_oh = enc.fit_transform(y_categ[:,j][..., n_axis]).toarray()    
+                    
+        opt = minimize(categ_loglik_j, lambda_categ_old[j], \
+                    args = (y_oh, zl1_s, S0, ps_y, pzl1_ys, nj_categ[j]), \
+                           tol = tol, method='BFGS', jac = categ_grad_j, 
+                           options = {'maxiter': maxstep})
+        
+        res = opt.x
+        if not(opt.success): # If the program fail, keep the old estimate as value
+            res = lambda_categ_old[j]
+            warnings.warn('One of the categorical optimisations has failed', RuntimeWarning)
+        
+        res = res.reshape(nj_categ[j], r0 + 1, order = 'C')
+
+        # Ensure identifiability for Lambda_j
+        new_lambda_categ_j = res[:, -r0: ] @ AT[0]
+        new_lambda_categ_j = np.hstack([deepcopy(res[:, 0][..., n_axis]), new_lambda_categ_j]) 
+        new_lambda_categ.append(new_lambda_categ_j)
+    
+    return new_lambda_categ
+
         

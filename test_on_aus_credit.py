@@ -14,6 +14,7 @@ from utilities import check_inputs
 from sklearn.metrics import precision_score
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import LabelEncoder 
 
 from gower import gower_matrix
 from sklearn.metrics import silhouette_score
@@ -53,9 +54,9 @@ p = y.shape[1]
 #===========================================#
 # Formating the data
 #===========================================#
-var_distrib = np.array(['categorical', 'continuous', 'continuous', 'categorical',\
-                        'categorical', 'categorical', 'continuous', 'categorical',\
-                        'categorical', 'continuous', 'categorical', 'categorical',\
+var_distrib = np.array(['bernoulli', 'continuous', 'continuous', 'categorical',\
+                        'categorical', 'categorical', 'continuous', 'bernoulli',\
+                        'bernoulli', 'continuous', 'bernoulli', 'categorical',\
                         'continuous', 'continuous']) 
  
 # No ordinal data 
@@ -64,14 +65,23 @@ y_categ_non_enc = deepcopy(y)
 vd_categ_non_enc = deepcopy(var_distrib)
 
 # Encode categorical datas
-y, var_distrib = gen_categ_as_bin_dataset(y, var_distrib)
+#y, var_distrib = gen_categ_as_bin_dataset(y, var_distrib)
+
+#######################################################
+# Test to encode categorical variables
+le = LabelEncoder()
+for col_idx, colname in enumerate(y.columns):
+    if var_distrib[col_idx] == 'categorical': 
+        y[colname] = le.fit_transform(y[colname])
+
+#####################
 
 # No binary data 
 
 enc = OneHotEncoder(sparse = False, drop = 'first')
 labels_oh = enc.fit_transform(np.array(labels).reshape(-1,1)).flatten()
 
-nj, nj_bin, nj_ord = compute_nj(y, var_distrib)
+nj, nj_bin, nj_ord, nj_categ = compute_nj(y, var_distrib)
 y_np = y.values
 nb_cont = np.sum(var_distrib == 'continuous')
 
@@ -86,6 +96,11 @@ y_np_nenc = y_nenc_typed.values
 
 # Defining distances over the non encoded features
 dm = gower_matrix(y_nenc_typed, cat_features = cf_non_enc) 
+
+dtype = {y.columns[j]: np.float64 if (var_distrib[j] != 'bernoulli') and \
+        (var_distrib[j] != 'categorical') else np.str for j in range(p_new)}
+
+y = y.astype(dtype, copy=True)
 
 
 #===========================================#
@@ -103,10 +118,6 @@ eps = 1E-05
 it = 15
 maxstep = 100
 
-dtype = {y.columns[j]: np.float64 if (var_distrib[j] != 'bernoulli') & \
-        (var_distrib[j] != 'categorical') else np.str for j in range(p_new)}
-
-y = y.astype(dtype, copy=True)
 
 # MCA init
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
@@ -327,7 +338,7 @@ res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/aus_credit
 # First find the best architecture 
 numobs = len(y)
 r = {'c': [nb_cont], 'd': [5], 't': [4, 3]}
-k = {'c': [1], 'd': [4], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 eps = 1E-05
 it = 30
@@ -377,7 +388,7 @@ mdgmm_res.mean()
 mdgmm_res.std()
 
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_k1D.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_k1D_categ_encoded.csv')
 
 #=======================================================================
 # Performance measure : Finding the best specification for other algos
@@ -395,6 +406,12 @@ nb_trials = 30
 
 res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/aus_credit'
 
+ss = StandardScaler()
+y_scale = y_nenc_typed.astype(float).values
+y_scale[:, vd_categ_non_enc == 'continuous'] = ss.fit_transform(y_scale[:,\
+                                                                    vd_categ_non_enc == 'continuous'])
+
+
 #****************************
 # Partitional algorithm
 #****************************
@@ -407,7 +424,7 @@ for init in inits:
     print(init)
     for i in range(nb_trials):
         km = KModes(n_clusters= n_clusters, init=init, n_init=10, verbose=0)
-        kmo_labels = km.fit_predict(y_np_nenc)
+        kmo_labels = km.fit_predict(y_scale)
         m, pred = misc(labels_oh, kmo_labels, True)
         
         sil = silhouette_score(dm, pred, metric = 'precomputed')            
@@ -423,7 +440,7 @@ part_res_modes.groupby('init').mean()
 part_res_modes.groupby('init').mean().max()
 part_res_modes.groupby('init').std() 
 
-part_res_modes.to_csv(res_folder + '/part_res_modes.csv')
+part_res_modes.to_csv(res_folder + '/part_res_modes_continuous_scaled.csv')
 
 #****************************
 # K prototypes
@@ -448,6 +465,7 @@ for init in inits:
                                                ignore_index=True)
 
 # Random is best
+part_res_proto.groupby('init').mean().max()
 part_res_proto.groupby('init').mean()
 part_res_proto.groupby('init').std()
 
@@ -487,8 +505,7 @@ hierarch_res.to_csv(res_folder + '/hierarch_res.csv')
 #****************************
 
 som_res = pd.DataFrame(columns = ['it_id', 'sigma', 'lr' ,'micro', 'macro', 'silhouette'])
-y_np = y.values.astype(float)
-numobs = len(y)
+
 
 sigmas = np.linspace(0.001, 3, 5)
 lrs = np.linspace(0.0001, 0.5, 10)
@@ -496,9 +513,9 @@ lrs = np.linspace(0.0001, 0.5, 10)
 for sig in sigmas:
     for lr in lrs:
         for i in range(nb_trials):
-            som = MiniSom(n_clusters, 1, y_np.shape[1], sigma = sig, learning_rate = lr) # initialization of 6x6 SOM
-            som.train(y_np, 100) # trains the SOM with 100 iterations
-            som_labels = [som.winner(y_np[i])[0] for i in range(numobs)]
+            som = MiniSom(n_clusters, 1, y_scale.shape[1], sigma = sig, learning_rate = lr) # initialization of 6x6 SOM
+            som.train(y_scale, 100) # trains the SOM with 100 iterations
+            som_labels = [som.winner(y_scale[i])[0] for i in range(numobs)]
             m, pred = misc(labels_oh, som_labels, True) 
             
             try: # If only one class sil is not defined
@@ -516,15 +533,12 @@ for sig in sigmas:
 som_res.groupby(['sigma', 'lr']).mean()
 som_res.groupby(['sigma', 'lr']).mean().max()
 som_res.groupby(['sigma', 'lr']).std()
-som_res.to_csv(res_folder + '/som_res.csv')
+som_res.to_csv(res_folder + '/som_res_continuous_scaled.csv')
 
 
 #****************************
 # Other algorithms family
 #****************************
-
-ss = StandardScaler()
-y_scale = ss.fit_transform(y_np)
 
 dbs_res = pd.DataFrame(columns = ['it_id', 'data' ,'leaf_size', 'eps',\
                                   'min_samples','micro', 'macro', 'silhouette'])
@@ -539,7 +553,7 @@ for lfs in lf_size:
     for eps in epss:
         for min_s in min_ss:
             for data in data_to_fit:
-                for i in range(1):
+                for i in range(nb_trials):
                     if data == 'gower':
                         dbs = DBSCAN(eps = eps, min_samples = min_s, \
                                      metric = 'precomputed', leaf_size = lfs).fit(dm)

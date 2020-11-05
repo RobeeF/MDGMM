@@ -308,6 +308,10 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     nj_bin = nj[np.logical_or(var_distrib == 'bernoulli',var_distrib == 'binomial')]
     nb_bin = len(nj_bin)
     
+    y_categ = y[:, var_distrib == 'categorical']
+    nj_categ = nj[var_distrib == 'categorical']
+    nb_categ = len(nj_categ)
+    
     y_ord = y[:, var_distrib == 'ordinal']  
     y_ord = y_ord.astype(int)
     nj_ord = nj[var_distrib == 'ordinal']
@@ -470,7 +474,7 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     lambda_ord = []
     
     for j in range(nb_ord):
-        Nj = len(np.unique(y_ord[:,j], axis = 0))  # The support of the jth ordinal is [1, Nj]
+        #Nj = len(np.unique(y_ord[:,j], axis = 0))  # The support of the jth ordinal is [1, Nj]
         yj = y_ord[:,j]
         
         ol = OrderedLogit()
@@ -479,10 +483,25 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
         ## Identifiability of ordinal coefficients
         beta_j = (ol.beta_.reshape(1, r['d'][0]) @ AT_d[0]).flatten()
         lambda_ord_j = np.concatenate([ol.alpha_, beta_j])
-        lambda_ord.append(lambda_ord_j)        
+        lambda_ord.append(lambda_ord_j)   
+        
+        
+    # Determining lambda_categ coefficients
+    lambda_categ = []
+    
+    for j in range(nb_categ):
+        yj = y_categ[:,j]
+        
+        lr = LogisticRegression(multi_class = 'multinomial')
+        lr.fit(zd[0], yj)        
+
+        ## Identifiability of categ coefficients
+        beta_j = lr.coef_ @ AT_d[0]  
+        lambda_categ.append(np.hstack([lr.intercept_[...,n_axis], beta_j]))  
         
     init['lambda_bin'] = lambda_bin
     init['lambda_ord'] = lambda_ord
+    init['lambda_categ'] = lambda_categ
     
     return init
 

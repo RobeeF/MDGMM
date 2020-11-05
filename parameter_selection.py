@@ -13,6 +13,8 @@ from utilities import isnumeric
 from sklearn.decomposition import PCA
 from data_preprocessing import bin_to_bern
 from sklearn.linear_model import LogisticRegression
+from autograd.numpy import newaxis as n_axis
+
 # Dirty local hard copy of the Github bevel package
 from bevel.linear_ordinal_regression import  OrderedLogit 
 import warnings 
@@ -28,9 +30,15 @@ w_s = w_s_d
 
 '''
 
-def rl1_selection(y_bin, y_ord, zl1_ys, w_s, Ld):
-    '''
-    Select the dimension of the first discrete layer 
+def rl1_selection(y_bin, y_ord, y_categ, zl1_ys, w_s, Ld):
+    ''' 
+        Selects the number of factor on the first latent discrete layer 
+        <Add arguments description>
+        Hyperparameters:
+        PROP_ZERO_THRESHOLD : The limit proportion of time a coefficient has 
+        been found to be zero before this dimension is deleted
+        PVALUE_THRESHOLD: The p-value threshold to zero a coefficient in ordinal
+        logistic regression 
     '''
 
     M0 = zl1_ys.shape[0]
@@ -40,19 +48,13 @@ def rl1_selection(y_bin, y_ord, zl1_ys, w_s, Ld):
 
     nb_bin = y_bin.shape[1]
     nb_ord = y_ord.shape[1]
+    nb_categ = y_categ.shape[1]
     
     # Need at least r1 == Ld for algorithm to work (to have r1 < r2 <r3 <...)
     min_arch_rl1 = Ld
     if r0 == min_arch_rl1: # TO CHECK
         return list(range(r0))
-    
-    # Define the hyperparameters: 
-    ## PROP_ZERO_THRESHOLD : The limit proportion of time a coefficient has 
-    ### been found to be zero before this dimension is deleted
-    
-    ## PVALUE_THRESHOLD: The p-value threshold to zero a coefficient in ordinal
-    ### logistic regression 
-        
+            
     PROP_ZERO_THRESHOLD = 0.25
     PVALUE_THRESHOLD = 0.10
     
@@ -89,11 +91,25 @@ def rl1_selection(y_bin, y_ord, zl1_ys, w_s, Ld):
             
             ol.fit(X, y_repeat)
             zero_coef_mask += np.array(ol.summary['p'] > PVALUE_THRESHOLD) * w_s[s]
+                # Detemine the dimensions that are weakest for Categorical variables
+                
+    for j in range(nb_categ):
+        for s in range(S0):
+            z = zl1_ys[:,:,:,s]
+                        
+            # Put all the M0 points in a series
+            X = z.flatten(order = 'C').reshape((M0 * numobs, r0), order = 'C')
+            y_repeat = np.repeat(y_categ[:,j], M0).astype(int) # Repeat rather than tile to check
+            
+            lr = LogisticRegression(penalty = 'l1', solver = 'saga', \
+                                    multi_class = 'multinomial')            
+            lr.fit(X, y_repeat)  
+            
+            zero_coef_mask += (lr.coef_[0] == 0) * w_s[s]    
     
-    #print(zero_coef_mask)
-    
+        
     # Voting: Delete the dimensions which have been zeroed a majority of times 
-    zeroed_coeff_prop = zero_coef_mask / ((nb_ord + nb_bin))
+    zeroed_coeff_prop = zero_coef_mask / (nb_ord + nb_bin + nb_categ)
     new_rl = np.sum(zeroed_coeff_prop <= PROP_ZERO_THRESHOLD)
     
     # Keep enough coefficients for the model to be identifiable
@@ -189,7 +205,6 @@ def other_r_selection(rl1_select, z2_z1s, Lt, head = True,\
                 if new_rl >= min_rl_for_viable_arch:
                     wanted_dims = np.where(average_corr > CORR_THRESHOLD)[0].tolist()
                 else:
-                    print('Need for viable architecture')
                     wanted_dims = np.argsort(- average_corr)[:min_rl_for_viable_arch]# -avg_score: In descending order 
                 
                 wanted_dims = np.sort(wanted_dims)
@@ -247,7 +262,7 @@ z2_z1s_c = z2_z1s_c[:bar_L['c']]
 
 '''
 
-def r_select(y_bin, y_ord, yc, zl1_ys_d, z2_z1s_d, w_s_d, z2_z1s_c, z2_z1s_t, n_clusters):
+def r_select(y_bin, y_ord, y_categ, yc, zl1_ys_d, z2_z1s_d, w_s_d, z2_z1s_c, z2_z1s_t, n_clusters):
     ''' Automatic choice of dimension of each layer components '''
     # TO DO: allow the head layers to be deleted
 
@@ -263,7 +278,7 @@ def r_select(y_bin, y_ord, yc, zl1_ys_d, z2_z1s_d, w_s_d, z2_z1s_c, z2_z1s_t, n_
     r_selected = {}
     
     # Discrete head selection
-    rl1_select_d = rl1_selection(y_bin, y_ord, zl1_ys_d, w_s_d, Ld)
+    rl1_select_d = rl1_selection(y_bin, y_ord, y_categ, zl1_ys_d, w_s_d, Ld)
     other_r_select_d, dims_score_d =  other_r_selection(rl1_select_d, z2_z1s_d,\
                                                          Lt, mode_multi = mode_multi)
     r_selected['d'] = [rl1_select_d] + other_r_select_d[:-1]
@@ -322,7 +337,6 @@ def k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer, n_clusters):
     
             other_layers_indices = tuple(set(range(Lh + Lt)) - set([l]))
             components_proba = w.sum(other_layers_indices)
-            print('k of the head', h, '=', components_proba)
             comp_kept = np.where(components_proba > PROBA_THRESHOLD)[0]
             comp_kept = np.sort(comp_kept)
             
@@ -486,11 +500,13 @@ def dgmm_coeff_selection(eta_c_, H_c_, psi_c_, eta_d_, H_d_, psi_d_, L, r_to_kee
     return eta_c, eta_d, H_c, H_d, psi_c, psi_d
 
 
-def gllvm_coeff_selection(lambda_bin_, lambda_ord_, r, r_to_keep):
+def gllvm_coeff_selection(lambda_bin_, lambda_ord_, lambda_categ_, r, r_to_keep):
     ''' Select the relevent gllvm coefficients '''
     
     nb_bin = len(lambda_bin_)
     nb_ord = len(lambda_ord_)
+    nb_categ = len(lambda_categ_)
+
     
     if nb_bin > 0:
         # Add the intercept:
@@ -508,8 +524,18 @@ def gllvm_coeff_selection(lambda_bin_, lambda_ord_, r, r_to_keep):
                       for j in range(nb_ord)]
     else:
         lambda_ord = []
+        
+    if nb_categ > 0:
+        lambda_categ_intercept = [lambda_categ_[j][:, 0]  for j in range(nb_categ)]
+        Lambda_categ_var = [lambda_categ_j[:,-r['d'][0]:] for lambda_categ_j in lambda_categ_]
+        Lambda_categ_var = [lambda_categ_j[:, r_to_keep['d'][0]] for lambda_categ_j in lambda_categ_]
+
+        lambda_categ = [np.hstack([lambda_categ_intercept[j][..., n_axis], Lambda_categ_var[j]])\
+                       for j in range(nb_categ)]  
+    else:
+        lambda_categ = []
             
-    return lambda_bin, lambda_ord
+    return lambda_bin, lambda_ord, lambda_categ
 
 '''
 w_s_c_ = w_s_c

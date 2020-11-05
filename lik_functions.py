@@ -9,7 +9,7 @@ import autograd.numpy as np
 from autograd.numpy import newaxis as n_axis
 from scipy.special import binom
 from sklearn.preprocessing import OneHotEncoder
-from numeric_stability import log_1plusexp, expit
+from numeric_stability import log_1plusexp, expit, softmax_
 
 
 def log_py_zM_bin_j(lambda_bin_j, y_bin_j, zM, k, nj_bin_j): 
@@ -156,3 +156,94 @@ def ord_loglik_j(lambda_ord_j, y_oh_j, zM, k, ps_y, p_z_ys, nj_ord_j):
     log_pyzM_j = log_py_zM_ord_j(lambda_ord_j, y_oh_j, zM, k, nj_ord_j)
     return -np.sum(ps_y * np.sum(np.expand_dims(p_z_ys, axis = 3) * log_pyzM_j, (0,3)))
 
+
+######################################################################
+# Categorical likelihood functions
+######################################################################
+
+'''
+lambda_categ_j = lambda_categ[j]
+k = S0
+nj_categ_j = nj_categ[j]
+zM = zl1_s
+
+'''
+
+#nj_categ_j useless
+def log_py_zM_categ_j(lambda_categ_j, y_categ_j, zM, k, nj_categ_j):
+    ''' Compute log p(y_j | zM, s1 = k1) of each categorical variable 
+    
+    lambda_categ_j (nj_categ x (r + 1) ndarray): Coefficients of the categorical distributions in the GLLVM layer
+    y_categ_j (numobs 1darray): The jth categorical variable in the dataset
+    zM (M x r x k ndarray): M Monte Carlo copies of z for each component k1 of the mixture
+    k (int): The number of components of the mixture
+    nj_categ_j (int): The number of possible values values of the jth categorical variable
+    --------------------------------------------------------------
+    returns (ndarray): The p(y_j | zM, s1 = k1) for the jth categorical variable
+    '''  
+
+    r = zM.shape[1]
+    nj = y_categ_j.shape[1]
+        
+    zM_broad = np.expand_dims(np.expand_dims(np.transpose(zM, (0, 2, 1)), 2), 3)
+    lambda_categ_j_ = lambda_categ_j.reshape(nj, r + 1, order = 'C')
+
+    eta = zM_broad @ lambda_categ_j_[:, 1:][n_axis, n_axis, ..., n_axis] # Check que l'on fait r et pas k ?
+    eta = eta + lambda_categ_j_[:,0].reshape(1, 1, nj, 1, 1) # Add the constant
+    
+    pi = softmax_(eta.astype(np.float), axis = 2)
+
+    yg = np.expand_dims(np.expand_dims(y_categ_j, 1), 1)[..., np.newaxis, np.newaxis] 
+    log_p_y_z = yg * np.log(pi[n_axis]) 
+    
+    # Reshaping output
+    log_p_y_z = log_p_y_z.sum((3)) # Suming over the modalities nj
+    log_p_y_z = log_p_y_z[:,:,:,0,0] # Deleting useless axes
+        
+    return np.transpose(log_p_y_z,(1,0, 2))
+
+def log_py_zM_categ(lambda_categ, y_categ, zM, k, nj_categ):
+    ''' Compute sum_j log p(y_j | zM, s1 = k1) of all the categorical data with a for loop
+    
+    lambda_categ (list of nj_categ x (r + 1) ndarrays): Coefficients of the categorical distributions in the GLLVM layer
+    y_categ (numobs x nb_categ ndarray): The subset containing only the categ variables in the dataset
+    zM (M x r x k ndarray): M Monte Carlo copies of z for each component k1 of the mixture
+    k (int): The number of components of the mixture
+    nj_categ (nb_categ x 1d-array): The number of possible values categorical variables respectively
+    --------------------------------------------------------------
+    returns (ndarray): The sum_j p(y_j | zM, s1 = k1)
+    '''
+    log_py_zM = 0
+    nb_categ = len(nj_categ)
+    enc = OneHotEncoder(categories='auto')
+    
+    for j in range(nb_categ):
+        y_categ_j = enc.fit_transform(y_categ[:,j][..., n_axis]).toarray()
+        log_py_zM += log_py_zM_categ_j(lambda_categ[j], y_categ_j, zM, k, nj_categ[j])
+        
+    return log_py_zM
+
+'''
+p_z_ys = pzl1_ys
+'''
+
+def categ_loglik_j(lambda_categ_j, y_categ_j, zM, k, ps_y, p_z_ys, nj_categ_j):
+    ''' Compute the expected log-likelihood for each categ variable y_j
+    lambda_categ_j (nj_categ x (r + 1) ndarray): Coefficients of the categorical distributions in the GLLVM layer
+    y_categ_j (numobs 1darray): The jth categorical variable in the dataset
+    zM (M x r x k ndarray): M Monte Carlo copies of z for each component k1 of the mixture
+    k (int): The number of components of the mixture
+    ps_y (numobs x k ndarray): p(s_i = k1 | y_i) for all k1 in [1,k] and i in [1,numobs]
+    p_z_ys (M x numobs x k ndarray): p(z_i | y_i, s_i = k) for all m in [1,M], k1 in [1,k] and i in [1,numobs]
+    nj_categ_j (int): The number of possible values values of the jth categorical variable
+    --------------------------------------------------------------
+    returns (float): E_{zM, s | y, theta}(y_categ_j | zM, s1 = k1)
+    ''' 
+    r = zM.shape[1]
+    nj = y_categ_j.shape[1]
+    
+    # Ensure the good shape of the input
+    lambda_categ_j_ = lambda_categ_j.reshape(nj, r + 1, order = 'C')
+    
+    log_pyzM_j = log_py_zM_categ_j(lambda_categ_j_, y_categ_j, zM, k, nj_categ_j)
+    return -np.sum(ps_y * np.sum(np.expand_dims(p_z_ys, axis = 3) * log_pyzM_j[..., n_axis], (0,3)))
