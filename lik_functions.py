@@ -95,7 +95,7 @@ def log_py_zM_ord_j(lambda_ord_j, y_oh_j, zM, k, nj_ord_j):
     '''    
     r = zM.shape[1]
     M = zM.shape[0]
-    epsilon = 1E-1 # Numeric stability
+    epsilon = 1E-10 # Numeric stability
 
     lambda0 = lambda_ord_j[:(nj_ord_j - 1)]
     Lambda = lambda_ord_j[-r:]
@@ -181,7 +181,8 @@ def log_py_zM_categ_j(lambda_categ_j, y_categ_j, zM, k, nj_categ_j):
     --------------------------------------------------------------
     returns (ndarray): The p(y_j | zM, s1 = k1) for the jth categorical variable
     '''  
-
+    
+    epsilon = 1E-10
     r = zM.shape[1]
     nj = y_categ_j.shape[1]
         
@@ -192,7 +193,11 @@ def log_py_zM_categ_j(lambda_categ_j, y_categ_j, zM, k, nj_categ_j):
     eta = eta + lambda_categ_j_[:,0].reshape(1, 1, nj, 1, 1) # Add the constant
     
     pi = softmax_(eta.astype(np.float), axis = 2)
-
+    
+    # Numeric stability
+    pi = np.where(pi <= 0, epsilon, pi)
+    pi = np.where(pi >= 1, 1 - epsilon, pi)
+    
     yg = np.expand_dims(np.expand_dims(y_categ_j, 1), 1)[..., np.newaxis, np.newaxis] 
     log_p_y_z = yg * np.log(pi[n_axis]) 
     

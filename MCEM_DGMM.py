@@ -61,6 +61,15 @@ def draw_z_s(mu_s, sigma_s, eta, M, center_last_layer = False):
         
     return z_s, zc_s
 
+
+'''
+chsi = chsi_c
+rho = rho_c
+M = M['c']
+r = r_1L['c']
+'''
+
+
 def draw_z2_z1s(chsi, rho, M, r):
     ''' Draw from f(z^{l+1} | z^{l}, s, Theta) 
     chsi (list of nd-arrays): The chsi parameters for all paths starting at each layer
@@ -77,19 +86,14 @@ def draw_z2_z1s(chsi, rho, M, r):
     
     z2_z1s = []
     for l in range(L):
-
-        z2_z1s_l = np.zeros((M[l + 1], M[l], S[l], r[l + 1]))    
+        z2_z1s_l = np.zeros((M[l], M[l + 1], S[l], r[l + 1]))    
         for s in range(S[l]):
-
-            z2_z1s_kl = multivariate_normal(size = M[l + 1], \
-                    mean = rho[l][:,s].flatten(order = 'C'), \
-                    cov = block_diag(*np.repeat(chsi[l][s][n_axis], M[l], axis = 0))) 
-            
-            z2_z1s_l[:, :, s] = z2_z1s_kl.reshape(M[l + 1], M[l], r[l + 1], order = 'C') 
-    
-        z2_z1s_l = t(z2_z1s_l, (1, 0 , 2, 3))
+            for m in range(M[l]):
+                z2_z1s_l[m,:, s] = multivariate_normal(size = M[l + 1], \
+                    mean = rho[l][m, s].flatten(order = 'C'), \
+                    cov = chsi[l][s])
+                
         z2_z1s.append(z2_z1s_l)
-        #print('----------------------------')
     
     return z2_z1s
 
@@ -128,6 +132,14 @@ def draw_z_s_all_network(mu_s_c, sigma_s_c, mu_s_d, sigma_s_d, yc, eta_c, \
     
     return z_s_c, zc_s_c, z_s_d, zc_s_d   
 
+
+'''
+chsi_c = chsi['c']
+chsi_d = chsi['d']
+rho_c = rho['c']
+rho_d = rho['d']
+
+'''
 
 def draw_z2_z1s_network(chsi_c, chsi_d, rho_c, rho_d, M, r_1L, L):
     ''' Draw z^{(l + 1)h} | z^{(l)h} from both heads and then from the tail ''' 

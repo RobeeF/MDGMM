@@ -327,7 +327,7 @@ r = {'c': [nb_cont], 'd': [5], 't': [4, 3]}
 k = {'c': [1], 'd': [4], 't': [n_clusters, 1]}
 
 eps = 1E-05
-it = 30
+it = 2
 maxstep = 100
 
 

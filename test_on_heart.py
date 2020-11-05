@@ -63,7 +63,7 @@ p = y.shape[1]
 var_distrib = np.array(['continuous', 'bernoulli', 'categorical', 'continuous',\
                         'continuous', 'bernoulli', 'categorical', 'continuous',\
                         'bernoulli', 'continuous', 'ordinal', 'ordinal',\
-                        'categorical']) 
+                        'categorical'])
     
 # Ordinal data already encoded
 
@@ -355,7 +355,7 @@ r = {'c': [nb_cont], 'd': [5], 't': [4, 3]}
 k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 eps = 1E-05
-it = 30
+it = 3
 maxstep = 100
 
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
@@ -398,7 +398,6 @@ for i in range(nb_trials):
 
 
 mdgmm_res.mean()
-mdgmm_res.mean().max()
 
 mdgmm_res.std()
 

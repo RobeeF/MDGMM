@@ -108,7 +108,7 @@ y = y.astype(dtype, copy=True)
 #===========================================# 
 
 n_clusters = 2
-r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
+r = {'c': [nb_cont], 'd': [5], 't': [4, 1]}
 k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 seed = 1
@@ -126,6 +126,11 @@ print(m)
 print(confusion_matrix(labels_oh, pred))
 print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
 
+'''
+y = y_np
+init = prince_init
+seed = None
+'''
 
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
             maxstep, seed, perform_selec = False)
@@ -341,12 +346,14 @@ r = {'c': [nb_cont], 'd': [5], 't': [4, 3]}
 k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 eps = 1E-05
-it = 30
+it = 2
 maxstep = 100
 
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
             maxstep, seed = None)
+
+it = 30
 
 r = out['best_r']
 numobs = len(y)
@@ -377,7 +384,7 @@ for i in range(nb_trials):
         mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': micro,\
                                     'macro': macro, 'silhouette': sil},\
                                      ignore_index=True)
-    except (ValueError, RuntimeError):
+    except:
         mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': np.nan,\
                                      'macro': np.nan, 'silhouette': np.nan},\
                                      ignore_index=True)

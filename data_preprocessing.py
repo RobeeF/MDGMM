@@ -73,6 +73,8 @@ def compute_nj(y, var_distrib):
     nj = []
     nj_bin = []
     nj_ord = []
+    nj_categ = []
+    
     for i in range(len(y.columns)):
         if np.logical_or(var_distrib[i] == 'bernoulli', var_distrib[i] == 'binomial'): 
             max_nj = np.max(y.iloc[:,i], axis = 0)
@@ -82,6 +84,10 @@ def compute_nj(y, var_distrib):
             card_nj = len(np.unique(y.iloc[:,i]))
             nj.append(card_nj)
             nj_ord.append(card_nj)
+        elif var_distrib[i] == 'categorical':
+            card_nj = len(np.unique(y.iloc[:,i]))
+            nj.append(card_nj)
+            nj_categ.append(card_nj)            
         elif var_distrib[i] == 'continuous':
             nj.append(np.inf)
         else:
@@ -90,8 +96,9 @@ def compute_nj(y, var_distrib):
     nj = np.array(nj)
     nj_bin = np.array(nj_bin)
     nj_ord = np.array(nj_ord)
+    nj_categ = np.array(nj_categ)
 
-    return nj, nj_bin, nj_ord
+    return nj, nj_bin, nj_ord, nj_categ
 
 def bin_to_bern(Nj, yj_binom, zM_binom):
     ''' Split the binomial variable into Bernoulli. Them just recopy the corresponding zM.
