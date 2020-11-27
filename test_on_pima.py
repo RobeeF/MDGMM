@@ -364,7 +364,7 @@ for i in range(nb_trials):
         mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': micro,\
                                     'macro': macro, 'silhouette': sil},\
                                      ignore_index=True)
-    except ValueError:
+    except:
         mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': np.nan,\
                                      'macro': np.nan, 'silhouette': np.nan},\
                                      ignore_index=True)
@@ -375,7 +375,7 @@ mdgmm_res.mean()
 mdgmm_res.std()
 
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_categ_encoded_best_sil.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_categ_encoded_best_sil_identif.csv')
 
 #=======================================================================
 # Performance measure : Finding the best specification for other algos

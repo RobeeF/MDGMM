@@ -13,7 +13,7 @@ from numeric_stability import ensure_psd
 from parameter_selection import r_select, k_select, check_if_selection, \
     dgmm_coeff_selection, gllvm_coeff_selection, path_proba_selection
 
-from identifiability_DGMM import head_identifiability
+from identifiability_DGMM import network_identifiability
                          
 from MCEM_DGMM import fz2_z1s, fz_ys,E_step_DGMM_d, M_step_DGMM,\
     draw_z_s_all_network, draw_z2_z1s_network, continuous_lik,\
@@ -128,8 +128,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     k_1L, L_1L, L, bar_L, S_1L = nb_comps_and_layers(k)    
     r_1L = {'c': r['c'] + r['t'], 'd': r['d'] + r['t'], 't': r['t']}
     
-    best_sil = [-1 for l in range(L['t'] - 1)] if n_clusters == 'multi' else -1 
-    new_sil = [-1 for l in range(L['t'] - 1)] if n_clusters == 'multi' else -1 
+    best_sil = [-1.1 for l in range(L['t'] - 1)] if n_clusters == 'multi' else -1.1 
+    new_sil = [-1.1 for l in range(L['t'] - 1)] if n_clusters == 'multi' else -1.1 
     
     
     M = M_growth(1, r_1L, numobs) 
@@ -143,7 +143,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
                          
                          
     # Compute the Gower matrix
-    dm = gower_matrix(y, cat_features = var_distrib != 'continuous') 
+    cat_features = np.logical_or(var_distrib == 'categorical', var_distrib == 'bernoulli')
+    dm = gower_matrix(y, cat_features = cat_features)
                      
     while (it_num < it) & ((ratio > eps) | (patience <= max_patience)):
         print(it_num)
@@ -156,7 +157,6 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
             elif n_clusters == 'multi':
                 clustering_layer = list(range(L['t'] - 1))
             else:
-                print(1)
                 raise ValueError('Please enter an int, auto or multi for n_clusters')
         else:
             assert (np.array(k['t']) == n_clusters).any()
@@ -178,39 +178,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
                         
         z_s_c, zc_s_c, z_s_d, zc_s_d = draw_z_s_all_network(mu_s_c, sigma_s_c,\
                             mu_s_d, sigma_s_d, yc, eta_c, eta_d, S_1L, L, M)
-            
-        #print('mu_s_c')
-        #print(mu_s_c[0])
-        #print(mu_s_c[1])
-
-        #print('mu_s_d')
-        #print(mu_s_d[0])
-        #print(mu_s_d[1])
-        
-        print('eta d')
-        print(eta_d[0])
-        print(eta_d[1])
-        
-        print('H d')
-        print(H_d[0])
-        print(H_d[1])
-        
-        print('H @ eta')
-        print(H_d[0] @ eta_d[1])
-        
-        '''
-        print('mu_s_c',  np.abs(mu_s_c[0]).mean())
-        print('sigma_s_c',  np.abs(sigma_s_c[0]).mean())
-        print('z_s_c0',  np.abs(z_s_c[0]).mean())
-        print('z_s_c1',  np.abs(z_s_c[1]).mean(0)[:,0])
-
-    
-        print('mu_s_d',  np.abs(mu_s_d[0]).mean())
-        print('sigma_s_d',  np.abs(sigma_s_d[0]).mean())
-        print('z_s_d',  np.abs(z_s_d[0]).mean())
-        print('z_s_d1',  np.abs(z_s_d[1]).mean(0)[:,0])
-       '''
-        
+                    
         #========================================================================
         # Draw from f(z^{l+1} | z^{l}, s, Theta) for l >= 1
         #========================================================================
@@ -230,14 +198,6 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         z2_z1s_c, z2_z1s_d = draw_z2_z1s_network(chsi_c, chsi_d, rho_c, \
                                                  rho_d, M, r_1L, L)
         
-        '''
-        print(H_c)
-        print(psi_c)
-        print('chsi_c',  np.abs(chsi_c[0]))
-        print('rho_c',  np.abs(rho_c[0]).mean(0)[:,0])
-        print('z_s_c',  np.abs(z_s_c[1]).mean(0)[:,0])
-        '''
-
         #=======================================================================
         # Compute the p(y^D| z1) for all discrete variables
         #=======================================================================
@@ -385,10 +345,10 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         #=======================================================
         # Identifiability conditions
         #=======================================================
-
-        eta_d, H_d, psi_d, AT_d = head_identifiability(eta_d, H_d, psi_d, w_s_d)
-        eta_c, H_c, psi_c, AT_c = head_identifiability(eta_c, H_c, psi_c, w_s_c)
-    
+        w_s_t = np.mean(pst_yCyD, axis = 0)  
+        eta_d, H_d, psi_d, AT_d, eta_c, H_c, psi_c, AT_c = network_identifiability(eta_d, \
+                                H_d, psi_d, eta_c, H_c, psi_c, w_s_c, w_s_d, w_s_t, bar_L)
+                
         #=======================================================
         # Compute GLLVM Parameters
         #=======================================================
@@ -397,13 +357,13 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         # (and more relevant with the independence hypothesis)
                 
         lambda_bin = bin_params_GLLVM(y_bin, nj_bin, lambda_bin, ps_y_d, \
-                    pzl1_ys_d, z_s_d[0], AT_d, tol = tol, maxstep = maxstep)
+                    pzl1_ys_d, z_s_d[0], AT_d[0], tol = tol, maxstep = maxstep)
                  
         lambda_ord = ord_params_GLLVM(y_ord, nj_ord, lambda_ord, ps_y_d, \
-                    pzl1_ys_d, z_s_d[0], AT_d, tol = tol, maxstep = maxstep)
+                    pzl1_ys_d, z_s_d[0], AT_d[0], tol = tol, maxstep = maxstep)
             
         lambda_categ = categ_params_GLLVM(y_categ, nj_categ, lambda_categ, ps_y_d,\
-                    pzl1_ys_d, z_s_d[0], AT_d, tol = tol, maxstep = maxstep)
+                    pzl1_ys_d, z_s_d[0], AT_d[0], tol = tol, maxstep = maxstep)
 
         ###########################################################################
         ################## Clustering parameters updating #########################
@@ -432,15 +392,11 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
                 temp_classes.append(temp_class_l)
                 z_tail.append(Ezst_y[l].sum(1))
                 new_sil_list.append(sil_l)
-                
+            
+            z_tail = []
             for l in range(L['t'] - 1):
                 zl = Ezst_y[l].sum(1)
-                '''
-                if zl.shape[-1] == 3:
-                    plot_3d(zl, temp_classes[l])
-                elif zl.shape[-1] == 2:
-                    plot_2d(zl, temp_classes[l])
-                '''
+                z_tail.append(zl)
                     
                 if best_sil[l] < new_sil_list[l]:
                     # Update the quantity if the silhouette score is better 
@@ -453,75 +409,29 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         
             temp_classes = np.argmax(psl_y, axis = 1) 
             try:
-                new_sil = silhouette_score(dm, temp_classes, metric = 'precomputed')  
+                new_sil = silhouette_score(dm, temp_classes, metric = 'precomputed') 
             except:
                 new_sil = -1
+            #print('Silhouette score:', new_sil)  
+
             
             z_tail = [Ezst_y[l].sum(1) for l in range(L['t'] - 1)]
          
-            for l in range(L['t'] - 1):
-                zl = Ezst_y[l].sum(1)
-                '''
-                if zl.shape[-1] == 3:
-                    plot_3d(zl, temp_classes)
-                elif zl.shape[-1] == 2:
-                    plot_2d(zl, temp_classes)
-                '''
-                    
+            #for l in range(L['t'] - 1):
+                #zl = Ezst_y[l].sum(1)
                     
             if best_sil < new_sil:
                 # Update the quantity if the silhouette score is better 
-                print(best_sil, '<', new_sil)
-                print('updating classes')
+                #print(best_sil, '<', new_sil)
+                #print('updating classes')
                 best_sil = deepcopy(new_sil)
                 classes = deepcopy(temp_classes)
-     
+                #print(silhouette_score(dm, classes, metric = 'precomputed'))   
         
-        
-        
-        # Refresh the classes only if they provide a better explanation of the data
+        # Refresh the likelihood if best
         if best_lik < new_lik:
             best_lik = deepcopy(prev_lik)
-        '''
-            
-            if n_clusters == 'multi':
-                classes = [] 
-                z_tail = []
-                for l in clustering_layer:
-                    idx_to_sum = tuple(set(range(1, L['t'] + 1)) -\
-                                       set([clustering_layer[l] + 1]))
-                    psl_y = pst_yCyD.reshape(numobs, *k['t'],\
-                                             order = 'C').sum(idx_to_sum) 
-                        
-                    classes.append(np.argmax(psl_y, axis = 1))
-                    z_tail.append(Ezst_y[l].sum(1))
-                    
-                for l in range(L['t'] - 1):
-                    zl = Ezst_y[l].sum(1)
-                    if zl.shape[-1] == 3:
-                        plot_3d(zl, classes[l])
-                    elif zl.shape[-1] == 2:
-                        plot_2d(zl, classes[l])
-
-            else: 
-                idx_to_sum = tuple(set(range(1, L['t'] + 1)) - set([clustering_layer + 1]))
-                psl_y = pst_yCyD.reshape(numobs, *k['t'], order = 'C').sum(idx_to_sum) 
-    
-                classes = np.argmax(psl_y, axis = 1) 
-                
-                z_tail = [Ezst_y[l].sum(1) for l in range(L['t'] - 1)]
-             
-                for l in range(L['t'] - 1):
-                    zl = Ezst_y[l].sum(1)
-                    if zl.shape[-1] == 3:
-                        plot_3d(zl, classes)
-                    elif zl.shape[-1] == 2:
-                        plot_2d(zl, classes)
-                                
-            best_r = deepcopy(r)
-            best_k = deepcopy(k)
-        '''
-        
+      
         if prev_lik < new_lik:
             patience = 0
             M = M_growth(it_num + 1, r_1L, numobs)
@@ -605,7 +515,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
             # If r_l == 0, delete the last l + 1: layers
             new_Lt = np.sum([len(rl) != 0 for rl in r_to_keep['t']]) #- 1
             
-            w_s_t = pst_yCyD.mean(0)
+            #w_s_t = pst_yCyD.mean(0)
             k_to_keep = k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer, n_clusters)
                         
             is_selection = check_if_selection(r_to_keep, r, k_to_keep, k, L, new_Lt)
@@ -645,8 +555,11 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
                 #=======================================================
                 # Identifiability conditions
                 #======================================================= 
-                eta_d, H_d, psi_d, AT_d = head_identifiability(eta_d, H_d, psi_d, w_s_d)
-                eta_c, H_c, psi_c, AT_c = head_identifiability(eta_c, H_c, psi_c, w_s_c)
+                eta_d, H_d, psi_d, AT_d, eta_c, H_c, psi_c, AT_c = network_identifiability(eta_d, \
+                                H_d, psi_d, eta_c, H_c, psi_c, w_s_c, w_s_d, w_s_t, bar_L)
+                    
+                #eta_d, H_d, psi_d, AT_d = head_identifiability(eta_d, H_d, psi_d, w_s_d)
+                #eta_c, H_c, psi_c, AT_c = head_identifiability(eta_c, H_c, psi_c, w_s_c)
                                  
             print('New architecture:')
             print('k', k)

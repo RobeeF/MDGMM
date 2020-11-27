@@ -353,12 +353,11 @@ k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 eps = 1E-05
 it = 2
 maxstep = 100
+it = 3
 
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
             maxstep, seed = None)
-
-it = 3
 
 r = out['best_r']
 numobs = len(y)
@@ -370,7 +369,7 @@ maxstep = 100
 nb_trials= 30
 mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'silhouette'])
 
-for i in range(8):
+for i in range(nb_trials):
 
     print(i)
     # Prince init

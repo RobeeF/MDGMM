@@ -11,8 +11,7 @@ os.chdir('C:/Users/rfuchs/Documents/GitHub/MDGMM')
 from copy import deepcopy
 from itertools import product
 
-from identifiability_DGMM import identifiable_estim_DDGMM, compute_z_moments,\
-        diagonal_cond
+from identifiability_DGMM import network_identifiability 
         
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression
@@ -22,7 +21,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler 
 
 from data_preprocessing import bin_to_bern
-from utilities import compute_path_params, isnumeric
+from utilities import isnumeric
     
 import prince
 import pandas as pd
@@ -275,7 +274,9 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
 
     numobs = len(y)
     
-    # Length of both heads and tail
+    # Length of both heads and tail. L, bar_L and S might not be homogeneous 
+    # with the MDGMM notations
+    bar_L = {'c': len(k['c']), 'd': len(k['d'])}
     L = {'c': len(k['c']), 'd': len(k['d']), 't': len(k['t']) - 1}
 
     # Paths of both heads and tail
@@ -378,6 +379,10 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     w_s_d = nb_paths_d / numobs
     w_s_d = np.where(w_s_d == 0, 1E-16, w_s_d)
     
+    k_dt = np.concatenate([k['d'] + k['t']])
+    w_s_t = w_s_d.reshape(*k_dt, order = 'C').sum(tuple(range(L['d'])))
+    w_s_t = w_s_t.reshape(-1, order = 'C')
+    
     # Check that all paths have been explored
     if (len(paths_c) != S['c'] * S['t']) | (len(paths_d) != S['d'] * S['t']):
         raise RuntimeError('Path initialisation failed')
@@ -386,21 +391,9 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     # Enforcing identifiability constraints over the first layer
     #=============================================================
     
-    H_c = diagonal_cond(H_c, psi_c) # Hack to remove
-    H_d = diagonal_cond(H_d, psi_d)
-
-    # Recompute the mu and psi
-    mu_s_c, sigma_s_c = compute_path_params(eta_c, H_c, psi_c)
-    mu_s_d, sigma_s_d = compute_path_params(eta_d, H_d, psi_d)
-    
-    # Hack to remove    
-    Ez1_c, AT_c = compute_z_moments(w_s_c, mu_s_c, sigma_s_c)        
-    eta_c, H_c, psi_c = identifiable_estim_DDGMM(eta_c, H_c, psi_c, Ez1_c, AT_c)
-    
-    Ez1_d, AT_d = compute_z_moments(w_s_d, mu_s_d, sigma_s_d)
-    eta_d, H_d, psi_d = identifiable_estim_DDGMM(eta_d, H_d, psi_d, Ez1_d, AT_d)
-
-        
+    eta_d, H_d, psi_d, AT_d, eta_c, H_c, psi_c, AT_c = network_identifiability(eta_d, \
+                    H_d, psi_d, eta_c, H_c, psi_c, w_s_c, w_s_d, w_s_t, bar_L)
+            
     init['c'] = {}
     init['c']['eta']  = eta_c     
     init['c']['H'] = H_c
@@ -438,10 +431,7 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
         assert clustering_layer >= L['c']
     
     init['classes'] = paths_pred_c[:,clustering_layer] 
-
-    
-    
-         
+     
     #=======================================================
     # Determining the coefficients of the GLLVM layer
     #=======================================================
@@ -468,7 +458,7 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
             lambda_bin[j] = np.concatenate([lr.intercept_, lr.coef_[0]])
     
     ## Identifiability of bin coefficients
-    lambda_bin[:,1:] = lambda_bin[:,1:] @ AT_d[0] 
+    lambda_bin[:,1:] = lambda_bin[:,1:] @ AT_d[0][0] 
     
     # Determining lambda_ord coefficients
     lambda_ord = []
@@ -481,7 +471,7 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
         ol.fit(zd[0], yj)
         
         ## Identifiability of ordinal coefficients
-        beta_j = (ol.beta_.reshape(1, r['d'][0]) @ AT_d[0]).flatten()
+        beta_j = (ol.beta_.reshape(1, r['d'][0]) @ AT_d[0][0]).flatten()
         lambda_ord_j = np.concatenate([ol.alpha_, beta_j])
         lambda_ord.append(lambda_ord_j)   
         
@@ -496,7 +486,7 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
         lr.fit(zd[0], yj)        
 
         ## Identifiability of categ coefficients
-        beta_j = lr.coef_ @ AT_d[0]  
+        beta_j = lr.coef_ @ AT_d[0][0] 
         lambda_categ.append(np.hstack([lr.intercept_[...,n_axis], beta_j]))  
         
     init['lambda_bin'] = lambda_bin

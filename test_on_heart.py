@@ -119,7 +119,7 @@ y = y.astype(dtype, copy=True)
 #===========================================# 
 #n_clusters = 2
 
-r = {'c': [nb_cont], 'd': [4], 't': [2, 1]}
+r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
 k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 seed = 1
@@ -150,11 +150,12 @@ warnings.simplefilter('ignore')
 '''
 
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
-            maxstep, seed, perform_selec = True)
+            maxstep, seed, perform_selec = False)
 m, pred = misc(labels_oh, out['classes'], True) 
 print(m)
 print(confusion_matrix(labels_oh, pred))
 print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
+print('Silhouette', silhouette_score(dm, out['classes'], metric = 'precomputed'))
 
 
 #===========================================#
@@ -401,7 +402,7 @@ mdgmm_res.mean()
 
 mdgmm_res.std()
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_kd1_autoselec_continuous_scaled_categ_encoded_best_sil.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_kd1_autoselec_continuous_scaled_categ_encoded_best_sil_identif.csv')
 
 mdgmm_res = pd.read_csv(res_folder + '/mdgmm_res_kd1_autoselec_continuous_scaled_categ_encoded.csv')
 
