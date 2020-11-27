@@ -108,7 +108,7 @@ y = y.astype(dtype, copy=True)
 #===========================================# 
 
 n_clusters = 2
-r = {'c': [nb_cont], 'd': [5], 't': [4, 1]}
+r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
 k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 seed = 1
@@ -122,9 +122,9 @@ maxstep = 100
 # MCA init
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
 m, pred = misc(labels_oh, prince_init['classes'], True) 
-print(m)
-print(confusion_matrix(labels_oh, pred))
-print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
+#print(m)
+#print(confusion_matrix(labels_oh, pred))
+#print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
 
 '''
 y = y_np
@@ -135,9 +135,14 @@ seed = None
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
             maxstep, seed, perform_selec = False)
 m, pred = misc(labels_oh, out['classes'], True) 
-print(m)
-print(confusion_matrix(labels_oh, pred))
+micro = precision_score(labels_oh, pred, average = 'micro')
+macro = precision_score(labels_oh, pred, average = 'macro')
+#print(m)
+#print(confusion_matrix(labels_oh, pred))
 print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
+print('Micro', micro)
+print('Macro', macro)
+
 
 #===========================================#
 # Final plotting
@@ -330,7 +335,7 @@ mca_mdgmm_res.groupby('r').mean().max()
 
 mca_mdgmm_res.groupby('r').std()
 
-mca_mdgmm_res.to_csv(res_folder + '/mca_mdgmm_res.csv')
+mca_mdgmm_res.to_csv(res_folder + '/mca_mdgmm_res_categ_encoded.csv')
 
 #============================================
 # MDGMM. Thresholds use: ? and ?
@@ -353,7 +358,7 @@ prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
             maxstep, seed = None)
 
-it = 30
+it = 3
 
 r = out['best_r']
 numobs = len(y)
@@ -365,7 +370,7 @@ maxstep = 100
 nb_trials= 30
 mdgmm_res = pd.DataFrame(columns = ['it_id', 'micro', 'macro', 'silhouette'])
 
-for i in range(nb_trials):
+for i in range(8):
 
     print(i)
     # Prince init
@@ -384,7 +389,8 @@ for i in range(nb_trials):
         mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': micro,\
                                     'macro': macro, 'silhouette': sil},\
                                      ignore_index=True)
-    except:
+        print(mdgmm_res)
+    except ValueError:
         mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': np.nan,\
                                      'macro': np.nan, 'silhouette': np.nan},\
                                      ignore_index=True)
@@ -395,7 +401,10 @@ mdgmm_res.mean()
 mdgmm_res.std()
 
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_k1D_categ_encoded.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_k1D_categ_encoded_best_sil.csv')
+
+mdgmm_res= pd.read_csv(res_folder + '/mdgmm_res_k1D_categ_encoded_best_sil.csv')
+
 
 #=======================================================================
 # Performance measure : Finding the best specification for other algos
@@ -591,9 +600,13 @@ for lfs in lf_size:
 mean_res = dbs_res.groupby(['data','leaf_size', 'eps', 'min_samples']).mean()
 maxs = mean_res.max()
 
-mean_res[mean_res['micro'] == maxs['micro']].std()
-mean_res[mean_res['macro'] == maxs['macro']].std()
-mean_res[mean_res['silhouette'] == maxs['silhouette']].std()
 
-dbs_res.to_csv(res_folder + '/dbs_res.csv')
+dbs_res.set_index(['data','leaf_size', 'eps', 'min_samples'])[mean_res['micro'] == maxs['micro']].std()
+dbs_res.set_index(['data','leaf_size', 'eps', 'min_samples'])[mean_res['macro'] == maxs['macro']].std()
+dbs_res.set_index(['data','leaf_size', 'eps', 'min_samples'])[mean_res['silhouette'] == maxs['silhouette']].std()
+
+
+dbs_res.to_csv(res_folder + '/dbs_res_continuous_scaled.csv')
+
+dbs_res = pd.read_csv(res_folder + '/dbs_res.csv')
 

@@ -120,7 +120,7 @@ y = y.astype(dtype, copy=True)
 #n_clusters = 2
 
 r = {'c': [nb_cont], 'd': [4], 't': [2, 1]}
-k = {'c': [1], 'd': [2], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 seed = 1
 init_seed = 2
@@ -401,7 +401,7 @@ mdgmm_res.mean()
 
 mdgmm_res.std()
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_kd1_autoselec_continuous_scaled_categ_encoded.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_kd1_autoselec_continuous_scaled_categ_encoded_best_sil.csv')
 
 mdgmm_res = pd.read_csv(res_folder + '/mdgmm_res_kd1_autoselec_continuous_scaled_categ_encoded.csv')
 
@@ -599,11 +599,10 @@ for lfs in lf_size:
 mean_res = dbs_res.groupby(['data','leaf_size', 'eps', 'min_samples']).mean()
 maxs = mean_res.max()
 
-dbs_res[(dbs_res['leaf_size'] == 10) & (dbs_res['eps'] == 0.0100) & (dbs_res['min_samples'] == 2)]
+dbs_res.set_index(['data','leaf_size', 'eps', 'min_samples'])[mean_res['micro'] == maxs['micro']].std()
+dbs_res.set_index(['data','leaf_size', 'eps', 'min_samples'])[mean_res['macro'] == maxs['macro']].std()
+dbs_res.set_index(['data','leaf_size', 'eps', 'min_samples'])[mean_res['silhouette'] == maxs['silhouette']].std()
 
-
-mean_res[mean_res['micro'] == maxs['micro']].std()
-mean_res[mean_res['macro'] == maxs['macro']].std()
-mean_res[mean_res['silhouette'] == maxs['silhouette']].std()
 
 dbs_res.to_csv(res_folder + '/dbs_res_continuous_scaled.csv')
+

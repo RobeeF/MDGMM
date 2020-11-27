@@ -36,7 +36,11 @@ from autograd.numpy import newaxis as n_axis
 
 from sklearn.preprocessing import StandardScaler
 
-import warnings
+
+from gower import gower_matrix
+from sklearn.metrics import silhouette_score
+
+import matplotlib.pyplot as plt
 
 def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
           eps = 1E-05, maxstep = 100, seed = None, perform_selec = True): 
@@ -65,11 +69,15 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     k = deepcopy(k)
     r = deepcopy(r)
     
+    best_k = deepcopy(k)
+    best_r = deepcopy(r)
+
     # Add other checks for the other variables
     check_inputs(k, r)
 
     prev_lik = - 1E15
     best_lik = -1E15
+    
     tol = 0.01
     max_patience = 1
     patience = 0
@@ -120,6 +128,10 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     k_1L, L_1L, L, bar_L, S_1L = nb_comps_and_layers(k)    
     r_1L = {'c': r['c'] + r['t'], 'd': r['d'] + r['t'], 't': r['t']}
     
+    best_sil = [-1 for l in range(L['t'] - 1)] if n_clusters == 'multi' else -1 
+    new_sil = [-1 for l in range(L['t'] - 1)] if n_clusters == 'multi' else -1 
+    
+    
     M = M_growth(1, r_1L, numobs) 
 
     if nb_bin + nb_ord + nb_categ == 0: # Create the InputError class and change this
@@ -128,6 +140,10 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
     if nb_cont == 0: # Create the InputError class and change this
         raise ValueError('Input does not contain continuous values,\
                          consider using a DDGMM')
+                         
+                         
+    # Compute the Gower matrix
+    dm = gower_matrix(y, cat_features = var_distrib != 'continuous') 
                      
     while (it_num < it) & ((ratio > eps) | (patience <= max_patience)):
         print(it_num)
@@ -159,9 +175,41 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         
         mu_s_d, sigma_s_d = compute_path_params(eta_d, H_d, psi_d)
         sigma_s_d = ensure_psd(sigma_s_d)
-                
+                        
         z_s_c, zc_s_c, z_s_d, zc_s_d = draw_z_s_all_network(mu_s_c, sigma_s_c,\
                             mu_s_d, sigma_s_d, yc, eta_c, eta_d, S_1L, L, M)
+            
+        #print('mu_s_c')
+        #print(mu_s_c[0])
+        #print(mu_s_c[1])
+
+        #print('mu_s_d')
+        #print(mu_s_d[0])
+        #print(mu_s_d[1])
+        
+        print('eta d')
+        print(eta_d[0])
+        print(eta_d[1])
+        
+        print('H d')
+        print(H_d[0])
+        print(H_d[1])
+        
+        print('H @ eta')
+        print(H_d[0] @ eta_d[1])
+        
+        '''
+        print('mu_s_c',  np.abs(mu_s_c[0]).mean())
+        print('sigma_s_c',  np.abs(sigma_s_c[0]).mean())
+        print('z_s_c0',  np.abs(z_s_c[0]).mean())
+        print('z_s_c1',  np.abs(z_s_c[1]).mean(0)[:,0])
+
+    
+        print('mu_s_d',  np.abs(mu_s_d[0]).mean())
+        print('sigma_s_d',  np.abs(sigma_s_d[0]).mean())
+        print('z_s_d',  np.abs(z_s_d[0]).mean())
+        print('z_s_d1',  np.abs(z_s_d[1]).mean(0)[:,0])
+       '''
         
         #========================================================================
         # Draw from f(z^{l+1} | z^{l}, s, Theta) for l >= 1
@@ -172,6 +220,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         chsi_c = ensure_psd(chsi_c)
         rho_c = compute_rho(eta_c, H_c, psi_c, mu_s_c, sigma_s_c, zc_s_c, chsi_c)
         
+                
         chsi_d = compute_chsi(H_d, psi_d, mu_s_d, sigma_s_d)
         chsi_d = ensure_psd(chsi_d)
         rho_d = compute_rho(eta_d, H_d, psi_d, mu_s_d, sigma_s_d, zc_s_d, chsi_d)
@@ -180,6 +229,14 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         # In the following z2 and z1 will denote z^{l+1} and z^{l} respectively
         z2_z1s_c, z2_z1s_d = draw_z2_z1s_network(chsi_c, chsi_d, rho_c, \
                                                  rho_d, M, r_1L, L)
+        
+        '''
+        print(H_c)
+        print(psi_c)
+        print('chsi_c',  np.abs(chsi_c[0]))
+        print('rho_c',  np.abs(rho_c[0]).mean(0)[:,0])
+        print('z_s_c',  np.abs(z_s_c[1]).mean(0)[:,0])
+        '''
 
         #=======================================================================
         # Compute the p(y^D| z1) for all discrete variables
@@ -234,7 +291,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         # Compute p(zC |s)
         py_zs_d = fy_zs(pz_ys_d, py_s_d) 
         py_zs_c = fy_zs(pz_ys_c, py_s_c)
- 
+         
         # Compute p(zt | yC, yD, sC, SD)        
         pzt_yCyDs = fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, M, S_1L, L)
 
@@ -261,8 +318,26 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
                 pzt_yCyDs, pz2_z1s_t, S_1L, L, k_1L)  
         
         # Error here for the first two terms: p(y^h | z^t, s^C) != p(y^h | z^t, s^{1C:L})
-        pst_yCyD = fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_c, w_s_d, k_1L, L)                                  
-               
+        pst_yCyD = fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_c, w_s_d, k_1L, L)   
+
+        '''        
+        print('E(zD | y, s) =',  np.abs(Ez_ys_d[0]).mean())
+        print('E(z1z2D | y, s) =',  np.abs(E_z1z2T_ys_d[0]).mean())
+        print('E(z2z2D | y, s) =',  np.abs(E_z2z2T_ys_d[0]).mean())
+        print('E(eeTD | y, s) =',  np.abs(EeeT_ys_d[0]).mean())
+        
+        print('E(zC | y, s) =', np.abs(Ez_ys_c[0]).mean())
+        print('E(z1z2C | y, s) =',  np.abs(E_z1z2T_ys_c[0]).mean())
+        print('E(z2z2C | y, s) =',  np.abs(E_z2z2T_ys_c[0]).mean())
+        print('E(eeTC | y, s) =',  np.abs(EeeT_ys_c[0]).mean())       
+        
+        print('E(zt | y, s) =',  np.abs(Ez_ys_t[0]).mean())
+        print('E(z1z2t | y, s) = ',  np.abs(E_z1z2T_ys_t[0]).mean())
+        print('E(z2z2t | y, s) =',  np.abs(E_z2z2T_ys_t[0]).mean())
+        print('E(eeTt | y, s) =',  np.abs(EeeT_ys_t[0]).mean()) 
+        '''
+
+                               
         ###########################################################################
         ############################ M step #######################################
         ###########################################################################
@@ -337,10 +412,77 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         new_lik = np.sum(np.log(py_d) + np.log(py_c))
         likelihood.append(new_lik)
         ratio = (new_lik - prev_lik)/abs(prev_lik)
-    
+        
+        
+        if n_clusters == 'multi':
+            temp_classes = [] 
+            z_tail = []
+            new_sil_list = []
+            classes = [[] for l in range(L['t'] - 1)]
+            
+            for l in clustering_layer:
+                idx_to_sum = tuple(set(range(1, L['t'] + 1)) -\
+                                   set([clustering_layer[l] + 1]))
+                psl_y = pst_yCyD.reshape(numobs, *k['t'],\
+                                         order = 'C').sum(idx_to_sum)
+                
+                temp_class_l = np.argmax(psl_y, axis = 1)
+                sil_l = silhouette_score(dm, temp_class_l, metric = 'precomputed')
+                    
+                temp_classes.append(temp_class_l)
+                z_tail.append(Ezst_y[l].sum(1))
+                new_sil_list.append(sil_l)
+                
+            for l in range(L['t'] - 1):
+                zl = Ezst_y[l].sum(1)
+                '''
+                if zl.shape[-1] == 3:
+                    plot_3d(zl, temp_classes[l])
+                elif zl.shape[-1] == 2:
+                    plot_2d(zl, temp_classes[l])
+                '''
+                    
+                if best_sil[l] < new_sil_list[l]:
+                    # Update the quantity if the silhouette score is better 
+                    best_sil[l] = deepcopy(new_sil_list[l])
+                    classes[l] = deepcopy(temp_classes[l])
+           
+        else: 
+            idx_to_sum = tuple(set(range(1, L['t'] + 1)) - set([clustering_layer + 1]))
+            psl_y = pst_yCyD.reshape(numobs, *k['t'], order = 'C').sum(idx_to_sum) 
+        
+            temp_classes = np.argmax(psl_y, axis = 1) 
+            try:
+                new_sil = silhouette_score(dm, temp_classes, metric = 'precomputed')  
+            except:
+                new_sil = -1
+            
+            z_tail = [Ezst_y[l].sum(1) for l in range(L['t'] - 1)]
+         
+            for l in range(L['t'] - 1):
+                zl = Ezst_y[l].sum(1)
+                '''
+                if zl.shape[-1] == 3:
+                    plot_3d(zl, temp_classes)
+                elif zl.shape[-1] == 2:
+                    plot_2d(zl, temp_classes)
+                '''
+                    
+                    
+            if best_sil < new_sil:
+                # Update the quantity if the silhouette score is better 
+                print(best_sil, '<', new_sil)
+                print('updating classes')
+                best_sil = deepcopy(new_sil)
+                classes = deepcopy(temp_classes)
+     
+        
+        
+        
         # Refresh the classes only if they provide a better explanation of the data
         if best_lik < new_lik:
             best_lik = deepcopy(prev_lik)
+        '''
             
             if n_clusters == 'multi':
                 classes = [] 
@@ -378,7 +520,7 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
                                 
             best_r = deepcopy(r)
             best_k = deepcopy(k)
-
+        '''
         
         if prev_lik < new_lik:
             patience = 0
@@ -497,6 +639,8 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
                 r_1L = {'c': r['c'] + r['t'], 'd': r['d'] + r['t'], 't': r['t']}
             
                 patience = 0
+                best_r = deepcopy(r)
+                best_k = deepcopy(k)  
                 
                 #=======================================================
                 # Identifiability conditions
@@ -515,8 +659,14 @@ def MDGMM(y, n_clusters, r, k, init, var_distrib, nj, it = 50, \
         M = M_growth(it_num + 1, r_1L, numobs)
         
         prev_lik = deepcopy(new_lik)
-        it_num = it_num + 1
         print(likelihood)
+        print('Silhouette score:', new_sil)  
+        #plt.hist(pst_yCyD[:,0])
+        #plt.title('Iteration' + str(it_num) +  'silhouette=' + str(new_sil))
+        #plt.show()
+        
+        it_num = it_num + 1
+
 
     out = dict(likelihood = likelihood, classes = classes, \
                    best_r = best_r, best_k = best_k)

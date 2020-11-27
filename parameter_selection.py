@@ -228,18 +228,27 @@ last_r_select_d = other_r_select_d[-1]
 last_r_select_c = other_r_select_c[-1]
 score_d = dims_score_d[-1]
 score_c = dims_score_c[-1]
-mode_multi = True
+mode_multi = False
 
 '''
 
 def tail_r_selection(last_r_select_d, last_r_select_c, score_d, score_c):
+    ''' Select the last dimensions of the tail layers'''
+    
+    avg_score = (score_c + score_d) / 2
+    nb_dims_maxs = min(len(last_r_select_c), len(last_r_select_d)) # Keep it identifiable
+    
+    dims_kept = np.argsort(- avg_score)[:nb_dims_maxs] # -avg_score: In descending order
+    
     
     # Keep the dimension that have been chosen at least by one head
-    dims_kept = list(set(np.concatenate([last_r_select_c, last_r_select_d]))) 
+    #dims_kept = list(set(np.concatenate([last_r_select_c, last_r_select_d]))) 
     
     # Mode multi :
     # On doit avoir au minimum rt1 = 3 pour 3 couches, = 2 pour 2 couches etc...
     # Ajouter argument nb_layers_to_keep
+    
+    
     
     '''
     # If there too many dimensions have been deleted, keep the more informative    

@@ -44,6 +44,7 @@ def compute_z_moments(w_s, mu_s, sigma_s):
 H_old = H_c
 psi_old = psi_c
 '''
+
 def diagonal_cond(H_old, psi_old):
     ''' Ensure that Lambda^T Psi^{-1} Lambda is diagonal
     H_old (list of nb_layers elements of shape (K_l x r_l-1, r_l)): The previous
@@ -58,7 +59,7 @@ def diagonal_cond(H_old, psi_old):
     
     H = []
     for l in range(L):
-        B = np.transpose(H_old[l], (0, 2, 1)) @ pinv(psi_old[l]) @ H_old[l]
+        B = np.transpose(H_old[l], (0, 2, 1)) @ pinv(psi_old[l], rcond=1e-3) @ H_old[l]
         values, vec  = eigh(B)
         H.append(H_old[l] @ vec)
     return H
@@ -83,7 +84,7 @@ def identifiable_estim_DDGMM(eta_old, H_old, psi_old, Ez1, AT):
     H_new = deepcopy(H_old)
     psi_new = deepcopy(psi_old)
         
-    inv_AT = pinv(AT) 
+    inv_AT = pinv(AT, rcond=1e-3) 
     
     # Identifiability 
     psi_new[0] = inv_AT @ psi_old[0] @ t(inv_AT, (0, 2, 1))
@@ -94,10 +95,10 @@ def identifiable_estim_DDGMM(eta_old, H_old, psi_old, Ez1, AT):
 
 def head_identifiability(eta, H, psi, w_s):
     with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("error")
+        warnings.simplefilter("default")
         H = diagonal_cond(H, psi)
 
-    mu_s, sigma_s = compute_path_params(eta, H, psi)        
-    Ez1, AT = compute_z_moments(w_s, mu_s, sigma_s)
-    eta, H, psi = identifiable_estim_DDGMM(eta, H, psi, Ez1, AT)
+        mu_s, sigma_s = compute_path_params(eta, H, psi)        
+        Ez1, AT = compute_z_moments(w_s, mu_s, sigma_s)
+        eta, H, psi = identifiable_estim_DDGMM(eta, H, psi, Ez1, AT)
     return eta, H, psi, AT

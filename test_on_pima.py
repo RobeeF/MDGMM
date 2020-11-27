@@ -53,8 +53,8 @@ p = y.shape[1]
 #===========================================#
 # Formating the data
 #===========================================#
-var_distrib = np.array(['binomial', 'continuous', 'continuous', 'continuous',\
-                        'continuous', 'continuous', 'continuous', 'ordinal']) 
+var_distrib = np.array(['ordinal', 'continuous', 'continuous', 'continuous',\
+                        'continuous', 'continuous', 'continuous', 'continuous']) 
  
 # Ordinal data already encoded
  
@@ -324,10 +324,10 @@ mca_mdgmm_res.to_csv(res_folder + '/mca_mdgmm_res.csv')
 # First find the best architecture 
 numobs = len(y)
 r = {'c': [nb_cont], 'd': [5], 't': [4, 3]}
-k = {'c': [1], 'd': [4], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
 
 eps = 1E-05
-it = 2
+it = 3
 maxstep = 100
 
 
@@ -375,7 +375,7 @@ mdgmm_res.mean()
 mdgmm_res.std()
 
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_correc.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_categ_encoded_best_sil.csv')
 
 #=======================================================================
 # Performance measure : Finding the best specification for other algos
