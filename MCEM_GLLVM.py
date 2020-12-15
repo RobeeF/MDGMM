@@ -67,7 +67,9 @@ def fy_zl1(lambda_bin, y_bin, nj_bin, lambda_ord, y_ord, nj_ord, lambda_categ,\
     lambda_ord (list of nb_ord_j x (nj_ord + r1) elements): The ordinal coefficients
     y_ord (numobs x nb_ord nd-array): The ordinal data
     nj_ord (list of int): The number of modalities for each ord variable
-    zl1_s ((M1, r1, s1) nd-array): z1 | s 
+    lambda_categ (list of nb_categ_j x (nj_ord + r1) elements): The categorical coefficients
+    y_categ (numobs x nb_categ nd-array): The categorical variables
+    zl1_s ((M1, r1, s1) nd-array): z^{1} | s 
     ------------------------------------------------------------------------------
     returns ((M1, numobs, S1) nd-array):log p(y | z1_M)
     '''
@@ -113,13 +115,9 @@ def E_step_GLLVM(zl1_s, mu_l1_s, sigma_l1_s, w_s, py_zl1):
     pzl1_s = np.zeros((M0, 1, S0))
         
     for s in range(S0): # Have to retake the function for DGMM to parallelize or use apply along axis
-        try:
-            pzl1_s[:,:, s] = mvnorm.pdf(zl1_s[:,:,s], mean = mu_l1_s[s].flatten(order = 'C'), \
+        pzl1_s[:,:, s] = mvnorm.pdf(zl1_s[:,:,s], mean = mu_l1_s[s].flatten(order = 'C'), \
                                                cov = sigma_l1_s[s], allow_singular = True)[..., n_axis]   
-        except:
-            print('The bad cov matrix is :')
-            print(sigma_l1_s[s])
-            raise RuntimeError('Singular matrix')
+
             
     # Compute p(y | s_i = 1)
     pzl1_s_norm = pzl1_s / np.sum(pzl1_s, axis = 0, keepdims = True) 
@@ -140,22 +138,13 @@ def E_step_GLLVM(zl1_s, mu_l1_s, sigma_l1_s, w_s, py_zl1):
 # M Step functions
 #=============================================================================
 
-'''
-lambda_bin_old = lambda_bin
-ps_y = ps_y_d
-pzl1_ys = pzl1_ys_d
-zl1_s =  z_s_d[0]
-AT = AT_d
-'''
-
-
 def bin_params_GLLVM(y_bin, nj_bin, lambda_bin_old, ps_y, pzl1_ys, zl1_s, AT,\
                      tol = 1E-5, maxstep = 100):
-    ''' Determine the GLLVM coefficients related to binomial coefficients by 
+    ''' Determines the GLLVM coefficients related to binomial coefficients by 
     optimizing each column coefficients separately.
     y_bin (numobs x nb_bin nd-array): The binomial data
     nj_bin (list of int): The number of modalities for each count/binary variable
-    lambda_bin_old (list of nb_ord_j x (nj_ord + r1) elements): The binomial coefficients
+    lambda_bin_old (list of nb_bin_j x (nj_bin + r1) elements): The binomial coefficients
                                                     of the previous iteration
     ps_y ((numobs, S) nd-array): p(s | y) for all s in Omega
     pzl1_ys (nd-array): p(z1 | y, s)
@@ -289,7 +278,7 @@ def categ_params_GLLVM(y_categ, nj_categ, lambda_categ_old, ps_y, pzl1_ys, zl1_s
     tol (int): Control when to stop the optimisation process
     maxstep (int): The maximum number of optimization step.
     ----------------------------------------------------------------------
-    returns (list of nb_ord_j x (nj_ord + r1) elements): The new ordinal coefficients
+    returns (list of nb_ord_j x (nj_ord + r1) elements): The new categorical coefficients
     '''
     #****************************
     # Categorical link parameters

@@ -18,23 +18,17 @@ from autograd.numpy.linalg import pinv
 #=============================================================================
 # MC Step functions
 #=============================================================================
-'''
-mu_s = mu_s_c[1:]
-sigma_s = sigma_s_c[1:]
-eta = eta_c[1:]
-M = M['c'][1:]
-
-'''
 
 def draw_z_s(mu_s, sigma_s, eta, M, center_last_layer = False):
     ''' Draw from f(z^{l} | s) for all s in Omega and return the centered and
-    non-centered draws
+        non-centered draws
+        
     mu_s (list of nd-arrays): The means of the Gaussians starting at each layer
     sigma_s (list of nd-arrays): The covariance matrices of the Gaussians 
                                                         starting at each layer
     eta (list of nb_layers elements of shape (K_l x r_{l-1}, 1)): mu parameters
                                                         for each layer
-    M (list of int): The number of MC to draw on each layer
+    M (dict of int): The number of MC to draw on each layer
     center_last_layer (Bool): Whether or not to return the last centered 
     -------------------------------------------------------------------------
     returns (list of ndarrays): z^{l} | s for all s in Omega and all l in L
@@ -62,21 +56,13 @@ def draw_z_s(mu_s, sigma_s, eta, M, center_last_layer = False):
     return z_s, zc_s
 
 
-'''
-chsi = chsi_c
-rho = rho_c
-M = M['c']
-r = r_1L['c']
-'''
-
-
 def draw_z2_z1s(chsi, rho, M, r):
     ''' Draw from f(z^{l+1} | z^{l}, s, Theta) 
     chsi (list of nd-arrays): The chsi parameters for all paths starting at each layer
     rho (list of ndarrays): The rho parameters (covariance matrices) for
                                     all paths starting at each layer
-    M (list of int): The number of MC to draw on each layer
-    r (list of int): The dimension of each layer
+    M (dict): The number of MC to draw on each layer
+    r (dict): The dimension of each layer
     ---------------------------------------------------------------------------
     returns (list of nd-arrays): z^{l+1} | z^{l}, s, Theta for all (l,s)
     '''
@@ -100,7 +86,18 @@ def draw_z2_z1s(chsi, rho, M, r):
 
 def draw_z_s_all_network(mu_s_c, sigma_s_c, mu_s_d, sigma_s_d, yc, eta_c, \
                          eta_d, S_1L, L, M):
-    ''' Draw z^{(l)h} from both heads and then from the tail ''' 
+    ''' Draw z^{(l)h} from both heads and then from the tail 
+    mu_s_* (list of nd-arrays): The means of the Gaussians starting at each layer of the head *
+    sigma_s_* (list of nd-arrays): The covariance matrices of the Gaussians of the head *
+    yc (n x p_continuous): The continuous data
+    eta_* (list of nb_layers elements of shape (K_l x r_{l-1}, 1)): mu parameters
+                                                        for each layer of head *
+    S_1L (dict): The number of paths starting at each layer
+    L (dict):  The number of layers on each head or tail
+    M (dict): The number of MC points to draw on each head or tail
+    --------------------------------------------------------------------------
+    returns (tuple of length 4): The latent variables existing in the network
+    ''' 
     
     #============================
     # Continuous head. 
@@ -133,16 +130,17 @@ def draw_z_s_all_network(mu_s_c, sigma_s_c, mu_s_d, sigma_s_d, yc, eta_c, \
     return z_s_c, zc_s_c, z_s_d, zc_s_d   
 
 
-'''
-chsi_c = chsi['c']
-chsi_d = chsi['d']
-rho_c = rho['c']
-rho_d = rho['d']
-
-'''
-
 def draw_z2_z1s_network(chsi_c, chsi_d, rho_c, rho_d, M, r_1L, L):
-    ''' Draw z^{(l + 1)h} | z^{(l)h} from both heads and then from the tail ''' 
+    ''' Draw z^{(l + 1)h} | z^{(l)h} from both heads and then from the tail 
+    chsi_* (list of nd-arrays): The chsi parameters for all paths starting at each layer of head *
+    rho_* (list of ndarrays): The rho parameters (covariance matrices) for
+                                    all paths starting at each layer of head *
+    M (dict of lists): The number of MC to draw on each layer
+    r_1L (dict of lists): The dimension of each layer
+    L (dict): The number of layers in the networks
+    ---------------------------------------------------------------------
+    returns (tuple of length 2): The latent variables of z^{(l + 1)h} | z^{(l)h} existing in the network
+    ''' 
     
     # Draw z^{l+1} | z^l, s from head to tail for the continuous head
     z2_z1s_c = draw_z2_z1s(chsi_c, rho_c, M['c'], r_1L['c'])
@@ -161,15 +159,14 @@ def draw_z2_z1s_network(chsi_c, chsi_d, rho_c, rho_d, M, r_1L, L):
 # E Step functions
 #=============================================================================
 
-
-'''
-z_s = z_s_c
-mu = mu_s_c
-sigma = sigma_s_c
-'''
-
 def fz_s(z_s, mu, sigma):
-    ''' Compute p(z | s)'''
+    ''' Compute p(z | s)
+    z_s (list of ndarrays): The latent variables on each path
+    mu (list of nd-arrays): The means of the Gaussians starting at each layer 
+    sigma (list of nd-arrays): The covariance matrices of the Gaussians 
+    ---------------------------------------------------------------------
+    returns (list of ndarrays): Compute the density estimates of p(z^{(l)} | s^{(l)})
+    '''
 
     epsilon = 1E-16
             
@@ -239,17 +236,15 @@ def fz2_z1s(pzl1_ys, z2_z1s, chsi, rho, S):
         
     return pz2_z1s
 
-'''
-mu = mu_s_c[0] 
-sigma = sigma_s_c[0]
-w = w_s_c 
-'''
-
 
 def continuous_lik(yc, mu, sigma, w):
-    ''' Compute p(y) and p(s | y)
-    Be careful of the impact of num stability on p(y) computation
-    Is w_s_c all good ?
+    ''' Compute p(y^C) and p(s^C | y^C)
+    yc (n x p_continuous): The continuous data
+    mu (list of nd-arrays): The means of the Gaussians starting at each layer 
+    sigma (list of nd-arrays): The covariance matrices of the Gaussians 
+    w (list): The flatten path probabilities     
+    -------------------------------------------------------------------------
+    returns (tuple of length 2): p(y^C) and p(s^C | y^C)
     '''
     epsilon = 1E-16
                 
@@ -290,7 +285,7 @@ def continuous_lik(yc, mu, sigma, w):
     py = np.exp(pys_max)[:, 0] * np.sum(pys, axis = 1) # p(y) = sum_{s} p(y,s)
     py_s = np.exp(py_s)
      
-    # Numeric stability issues:    
+    # Numeric stability issues handling   
     ps_y = np.where(ps_y <= epsilon, epsilon, ps_y) 
     py = np.where(py == 0, epsilon, py)
                 
@@ -322,13 +317,14 @@ def fz_ys(pzl1_ys, pz2_z1s):
 
     return pz_ys 
 
-'''
-pz_ys = pz_ys_c
-py_s = py_s_c
-pz_s = pz_s_c
-'''
 
 def fy_zs(pz_ys, py_s):
+    ''' Compute p(y^h | z^{(l)h}, s^h)
+    pz_ys (list of ndarrays): p(z^{(l)h} |y^h, s^h)
+    py_s (ndarray): p(y^h| s^h)
+    ----------------------------------------------------------------
+    returns (list of ndarrays): p(y^h | z^{(l)h}, s^h)
+    '''
     
     L = len(pz_ys)
     epsilon = 1E-16
@@ -344,14 +340,20 @@ def fy_zs(pz_ys, py_s):
         fy_zs.append(fy_zsl)
     
     return fy_zs
-    
-'''
-py_zs = py_zs_c
-pz_ys = pz_ys_d
-'''
+
 
 def fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, M, S_1L, L):
-    ''' Compute p(zt | yC, yD, sC, sD) for all common layers'''
+    ''' Compute p(zt | yC, yD, sC, sD) for all common layers
+    py_zs_c  (list of ndarrays): p(y^C | z^C,  s^C)
+    pz_ys_d (list of ndarrays): p(z^D | y^D,  s^D)
+    py_s_c (ndarray): p(y^C | s^C)
+    M (dict): The number of MC points to draw on each head or tail
+    S_1L (dict): The number of paths starting at each layer
+    L (dict):  The number of layers on each head or tail
+    ----------------------------------------------------------------
+    returns (list of ndarrays): p(zt | yC, yD, sC, sD) 
+    '''
+    
     epsilon = 1E-16
 
     numobs = py_zs_c[0].shape[0]
@@ -385,23 +387,20 @@ def fz_yCyDs(py_zs_c, pz_ys_d, py_s_c, M, S_1L, L):
     
     return fz_yCyDs
     
-
-'''
-w_s_d.reshape(*k_1L['d'], order = 'C').sum((0, 1))
-w_s_c.reshape(*k_1L['c'], order = 'C').sum(0)
-
-'''
-# Pk w_s_y_d.sum((1,2)) et w_s_y_c.sum((1,2)) pas la même ?
-# C'est la mêmeà létape 0 de l'arch minimale en tout cas.
-# Mais s'écarte après...
  
 def fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_c, w_s_d, k_1L, L):
-    '''
-        Compute p(s^L0 | y^C, y^D)
-        pz_s_d = pz_s_c
+    ''' Compute p(s^L0 | y^C, y^D)
+    py_zs_c (list of ndarrays): p(y^C | z^C, s^C)
+    py_zs_d (list of ndarrays): p(y^D | z^D, s^D)
+    pz_s_d (list of ndarrays): p(z^D | s^D)
+    w_s_* (list of length s1): The path probabilities for all s in S^h 
+                        of the given head or tail *
+    k_1L (list of int): The number of component on each layer including the common layers
+    L (dict):  The number of layers on each head or tail
+    ----------------------------------------------------------------
+    returns (list of ndarrays): p(s^t | y^C, y^D) 
     '''
     
-    # Sur que reshape ne tord pas les chemins ?
     epsilon = 1E-16
     numobs = py_zs_c[0].shape[0]
             
@@ -440,8 +439,6 @@ def fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_c, w_s_d, k_1L, L):
     # sum_s^D p(y^C | z^t, s^D, s^t) p(s^D)
     pysD_ztst_d = (py_zts_d * ps_d).sum(2)
     
-    # Keep dims ?
-    
     pst_yCyD = (pyst_zt_c * pysD_ztst_d * pz_s_t).sum(1)
 
     # Normalization 
@@ -451,74 +448,17 @@ def fst_yCyD(py_zs_c, py_zs_d, pz_s_d, w_s_c, w_s_d, k_1L, L):
     return pst_yCyD
     
 
-
-def fst_yCyD_old(py_zs_c, py_zs_d, pz_s_d, w_s_d, k_1L, L):
-
-    epsilon = 1E-16
-    numobs = py_zs_c[0].shape[0]
-        
-    # p(y^h | zt^{(1)}, s^h, Theta) for h in {C, D}.
-    py_zts_c = py_zs_c[L['c']]
-    py_zts_d = py_zs_d[L['d']]
-
-    Mt = py_zts_c.shape[1] # Nb of MC points of the first tail layer
-
-    # p(y^C | zt^{(1)}, s^t, Theta)    
-    py_zts_c = py_zts_c.reshape(numobs, Mt, *k_1L['c'], order = 'C')
-    idx_to_sum = tuple(range(2, L['c'] + 3))
-    py_zts_c = py_zts_c.sum(idx_to_sum).reshape(numobs, Mt, -1, order = 'C')
-    
-    # p(y^D | zt^{(1)}, s^t, Theta)
-    py_zts_d = py_zts_d.reshape(numobs, Mt, *k_1L['d'], order = 'C')
-    idx_to_sum = tuple(range(2, L['d'] + 2))
-    py_zts_d = py_zts_d.sum(idx_to_sum).reshape(numobs, Mt, -1, order = 'C')    
-    
-    # p(s^t | Theta) 
-    ps_t = w_s_d.reshape(*k_1L['d'], order = 'C')
-    idx_to_sum = tuple(range(L['d']))
-    ps_t = ps_t.sum(idx_to_sum).reshape(-1, order = 'C')[n_axis, n_axis] 
-    
-    # p(zt^{(1)} | s^t, Theta)
-    pz_s_t = pz_s_d[L['d']]    
-    pz_s_t = pz_s_t.reshape(Mt, *k_1L['d'], order = 'C')
-    idx_to_sum = tuple(range(1, L['d'] + 1))    
-    pz_s_t = pz_s_t.sum(idx_to_sum).reshape(Mt, -1, order = 'C')[n_axis]
-
-    # p(s^t, zt^{(1)}| y^C, y^D) then p(s^t | y^C, y^D)
-    pztst_yCyD = (py_zts_c * py_zts_d * ps_t * pz_s_t) # Unormalized
-    pst_yCyD = pztst_yCyD.sum(1) # Unormalized
-
-    # Normalization 
-    pst_yCyD_stab = np.where(pst_yCyD == 0.0, epsilon, pst_yCyD)
-    pst_yCyD = pst_yCyD / pst_yCyD_stab.sum(1, keepdims = True)    
-
-    return pst_yCyD
-
-      
-      
-'''
-H = H_c
-z_s = z_s_c
-zc_s = zc_s_c
-z2_z1s = z2_z1s_c
-pz_ys = pz_ys_c
-pz2_z1s = pz2_z1s_c
-Sc = S_1L['c']
-Lc = L['c']
-'''
-
-
 def E_step_DGMM_c(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1s, Sc, Lc):
-    ''' Compute the expectations of the E step for all DGMM layers
-    zl1_ys ((M1, numobs, r1, S1) nd-array): z^{(1)} | y, s
+    ''' Compute the expectations of the E step for all DGMM layers of the continuous head
     H (list of nb_layers elements of shape (K_l x r_l-1, r_l)): Lambda parameters
                                                                 for each layer
-    z_s (list of nd-arrays): zl | s^l for all s^l and all l.
-    zc_s (list of nd-arrays): (zl | s^l) - eta{k_l}^{(l)} for all s^l and all l.
+    z_s (list of nd-arrays): z^{(l)} | s^l for all s^l and all l.
+    zc_s (list of nd-arrays): (z^{(l)C} | s^{(l)C} - eta{k_l}^{(l)C} for all s^l and all l.
     z2_z1s (list of ndarrays): z^{(l + 1)}| z^{(l)}, s
     pz_ys (list of ndarrays): p(z^{l} | y, s)
     pz2_z1s (list of ndarrays): p(z^{(l)}| z^{(l-1)}, y)
-    S (list of int): The number of paths starting at each layer
+    Sc (list of int): The number of paths starting at each layer of the continuous head
+    Lc (list of int):  The number of layers on the continuous head
     ------------------------------------------------------------
     returns (tuple of ndarrays): E(z^{(l)} | y, s), E(z^{(l)}z^{(l+1)T} | y, s), 
             E(z^{(l+1)}z^{(l+1)T} | y, s), 
@@ -617,21 +557,9 @@ def E_step_DGMM_c(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1s, Sc, Lc):
     
     return Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys
 
-'''
-zl1_ys = zl1_ys_d
-H = H_d
-z_s = z_s_d
-zc_s = zc_s_d
-z2_z1s = z2_z1s_d
-pz_ys = pz_ys_d
-pz2_z1s = pz2_z1s_d
-Sd = S_1L['d']
-Ld= L['d']
-'''
-
 
 def E_step_DGMM_d(zl1_ys, H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1s, Sd, Ld):
-    ''' Compute the expectations of the E step for all DGMM layers
+    ''' Compute the expectations of the E step for all DGMM layers of the discrete head
     zl1_ys ((M1, numobs, r1, S1) nd-array): z^{(1)} | y, s
     H (list of nb_layers elements of shape (K_l x r_l-1, r_l)): Lambda parameters
                                                                 for each layer
@@ -640,7 +568,8 @@ def E_step_DGMM_d(zl1_ys, H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1s, Sd, Ld):
     z2_z1s (list of ndarrays): z^{(l + 1)}| z^{(l)}, s
     pz_ys (list of ndarrays): p(z^{l} | y, s)
     pz2_z1s (list of ndarrays): p(z^{(l)}| z^{(l-1)}, y)
-    S (list of int): The number of paths starting at each layer
+    Sd (list of int): The number of paths starting at each layer of the discrete head
+    Ld (list of int):  The number of layers on the discrete head   
     ------------------------------------------------------------
     returns (tuple of ndarrays): E(z^{(l)} | y, s), E(z^{(l)}z^{(l+1)T} | y, s), 
             E(z^{(l+1)}z^{(l+1)T} | y, s), 
@@ -729,18 +658,9 @@ def E_step_DGMM_d(zl1_ys, H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1s, Sd, Ld):
     
     return Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys
 
-'''
-H = H_c[bar_L['c']:]
-z_s = z_s_c[bar_L['c']:]
-zc_s = zc_s_c[bar_L['c']:]
-z2_z1s = z2_z1s_c[bar_L['c']:]
-pz_ys = pzt_yCyDs
-pz2_z1st = pz2_z1s_t
-'''
-
 
 def E_step_DGMM_t(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1st, S_1L, L, k_1L):
-    ''' Compute the expectations of the E step for all DGMM layers
+    ''' Compute the expectations of the E step for all DGMM layers of the commont tail
     zl1_ys ((M1, numobs, r1, S1) nd-array): z^{(1)} | y, s
     H (list of nb_layers elements of shape (K_l x r_l-1, r_l)): Lambda parameters
                                                                 for each layer
@@ -748,8 +668,10 @@ def E_step_DGMM_t(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1st, S_1L, L, k_1L):
     zc_s (list of nd-arrays): (zl | s^l) - eta{k_l}^{(l)} for all s^l and all l.
     z2_z1s (list of ndarrays): z^{(l + 1)}| z^{(l)}, s
     pz_ys (list of ndarrays): p(z^{l} | y, s)
-    pz2_z1s (list of ndarrays): p(z^{(l)}| z^{(l-1)}, y)
-    S (list of int): The number of paths starting at each layer
+    pz2_z1st (list of ndarrays): p(z^{(l)}| z^{(l-1)}, y)
+    S_1L (dict): The number of paths starting at each layer in the network
+    L (dict):  The number of layers on each head or tail
+    k_1L (list of int): The number of component on each layer including the common layers
     ------------------------------------------------------------
     returns (tuple of ndarrays): E(z^{(l)} | y, s), E(z^{(l)}z^{(l+1)T} | y, s), 
             E(z^{(l+1)}z^{(l+1)T} | y, s), 
@@ -857,38 +779,19 @@ def E_step_DGMM_t(H, z_s, zc_s, z2_z1s, pz_ys, pz2_z1st, S_1L, L, k_1L):
     return Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys
 
 
-'''
-H = H_c[bar_L['c']:]
-z_s = z_s_c[bar_L['c']:]
-zc_s = zc_s_c[bar_L['c']:]
-z2_z1s = z2_z1s_c[bar_L['c']:]
-pz_ys = pzt_yCyDs
-pz2_z1s = pz2_z1s_c[bar_L['c']:]
-S= S_1L
-'''
-
-'''
-Ez_ys = Ez_ys_c
-E_z1z2T_ys = E_z1z2T_ys_c
-E_z2z2T_ys = E_z2z2T_ys_c
-EeeT_ys = EeeT_ys_c
-ps_y = ps_y_c
-H_old = H_c
-k = k_1L['c'][:-1]
-L_1Lh = L_1L['c']
-rh  = r_1L['c'] 
-'''
-
 def M_step_DGMM(Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys, ps_y, H_old, k, L_1Lh, rh):
     ''' 
     Compute the estimators of eta, Lambda and Psi for all components and all layers of both heads
     Ez_ys (list of ndarrays): E(z^{(l)} | y, s) for all (l,s)
     E_z1z2T_ys (list of ndarrays):  E(z^{(l)}z^{(l+1)T} | y, s) 
+    E_z2z2T_ys (list of ndarrays):  E(z^{(l+1)}z^{(l+1)T} | y, s) 
     EeeT_ys (list of ndarrays): E(z^{(l+1)}z^{(l+1)T} | y, s), 
             E(e | y, s) with e = z^{(l)} - eta{k_l}^{(l)} - Lambda @ z^{(l + 1)}
     ps_y ((numobs, S) nd-array): p(s | y) for all s in Omega
     H_old (list of ndarrays): The previous iteration values of Lambda estimators
-    k (list of int): The number of component on each layer
+    k (dict): The number of component on each layer
+    L_1Lh (list of int): The number layers starting from the head h until the end of the common tail
+    rh (list): The dimension of each layer of the head h
     --------------------------------------------------------------------------
     returns (list of ndarrays): The new estimators of eta, Lambda and Psi 
                                             for all components and all layers
@@ -951,30 +854,29 @@ def M_step_DGMM(Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys, ps_y, H_old, k, L_1Lh, r
 
     return eta, H, psi
 
-'''
-Ez_ys = Ez_ys_t
-E_z1z2T_ys = E_z1z2T_ys_t
-E_z2z2T_ys = E_z2z2T_ys_t
-EeeT_ys = EeeT_ys_t
-H_old = H_c[bar_L['c']:]
-L_1Lh = L_1L['t']
-rh  = r_1L['t'] 
-'''
-
+# L and L_1L are redundant
 def M_step_DGMM_t(Ez_ys, E_z1z2T_ys, E_z2z2T_ys, EeeT_ys, \
                   ps_y_c, ps_y_d, pst_yCyD, H_old, S_1L, k_1L, L_1L, L, rh):
     ''' 
     Compute the estimators of eta, Lambda and Psi for all components and all layers of the tail
     Ez_ys (list of ndarrays): E(z^{(l)} | y, s) for all (l,s)
     E_z1z2T_ys (list of ndarrays):  E(z^{(l)}z^{(l+1)T} | y, s) 
+    E_z2z2T_ys (list of ndarrays):  E(z^{(l+1)}z^{(l+1)T} | y, s) 
     EeeT_ys (list of ndarrays): E(z^{(l+1)}z^{(l+1)T} | y, s), 
             E(e | y, s) with e = z^{(l)} - eta{k_l}^{(l)} - Lambda @ z^{(l + 1)}
+    ps_y_* ((numobs, S) nd-array): p(s | y) for all s in Omega^*
     pst_yCyD ((numobs, S) nd-array): p(s^t | y) for all s in the tail
-    H_old (list of ndarrays): The previous iteration values of Lambda estimators
-    k (list of int): The number of component on each layer
+    H_old (list of nb_layers elements of shape (K_l x r_l-1, r_l)): Lambda 
+                        estimators of the previous iteration for each layer
+    S_1L (dict): The number of paths starting at each layer until the common tail
+    k_1L (list of int): The number of component on each layer including the common tail
+    L_1L (dict): The number of layers where the lists include the heads and the tail layers
+    L (dict): The number of layers in the networks (to delete in future versions)
+    rh (list): The dimension of each layer of the head h
     --------------------------------------------------------------------------
-    returns (list of ndarrays): The new estimators of eta, Lambda and Psi 
+    returns (tuple of length 4): The new estimators of eta, Lambda and Psi 
                                             for all components and all layers
+                                            and the associated latent expectancy 
     '''
     
     Lh = len(E_z1z2T_ys)

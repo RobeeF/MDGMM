@@ -161,14 +161,6 @@ def ord_loglik_j(lambda_ord_j, y_oh_j, zM, k, ps_y, p_z_ys, nj_ord_j):
 # Categorical likelihood functions
 ######################################################################
 
-'''
-lambda_categ_j = lambda_categ[j]
-k = S0
-nj_categ_j = nj_categ[j]
-zM = zl1_s
-
-'''
-
 #nj_categ_j useless
 def log_py_zM_categ_j(lambda_categ_j, y_categ_j, zM, k, nj_categ_j):
     ''' Compute log p(y_j | zM, s1 = k1) of each categorical variable 
@@ -228,9 +220,6 @@ def log_py_zM_categ(lambda_categ, y_categ, zM, k, nj_categ):
         
     return log_py_zM
 
-'''
-p_z_ys = pzl1_ys
-'''
 
 def categ_loglik_j(lambda_categ_j, y_categ_j, zM, k, ps_y, p_z_ys, nj_categ_j):
     ''' Compute the expected log-likelihood for each categ variable y_j

@@ -5,8 +5,6 @@ Created on Mon Feb 10 16:55:44 2020
 @author: RobF
 """
 
-import os
-os.chdir('C:/Users/rfuchs/Documents/GitHub/MDGMM')
 
 from copy import deepcopy
 from itertools import product
@@ -27,7 +25,6 @@ import prince
 import pandas as pd
 from sklearn.cross_decomposition import PLSRegression
 
-
 # Dirty local hard copy of the Github bevel package
 from bevel.linear_ordinal_regression import  OrderedLogit 
 
@@ -35,15 +32,19 @@ import autograd.numpy as np
 from autograd.numpy import newaxis as n_axis
 from autograd.numpy.linalg import LinAlgError
 
-import warnings 
-warnings.simplefilter('default')
-
 ####################################################################################
 ################### MCA GMM + Logistic Regressions initialisation ##################
 ####################################################################################
 
 def add_missing_paths(k, init_paths, init_nb_paths):
-    ''' Add the paths that have been given zeros probabily during init '''
+    ''' Add the paths that have been given zeros probabily during init 
+    k (dict of list): The number of components on each layer of each head and tail
+    init_paths (ndarray): The already existing non-zero probability paths
+    init_nb_paths (list of Bool): takes the value 1 if the path existed 0 otherwise
+    ---------------------------------------------------------------------------------
+    returns (tuple of size 2): The completed lists of paths (ndarray) and the total 
+                                number of paths (1d array)
+    '''
     
     L = len(k)
     all_possible_paths = list(product(*[np.arange(k[l]) for l in range(L)]))
@@ -52,25 +53,17 @@ def add_missing_paths(k, init_paths, init_nb_paths):
         
     for idx, path in enumerate(all_possible_paths):
         if not(path in existing_paths):
-            #print('The following path has been added', idx, path)
             existing_paths.insert(idx, path)
             nb_existing_paths = np.insert(nb_existing_paths, idx, 0, axis = 0)
 
     return existing_paths, nb_existing_paths
 
-'''
-,, 
-
-zl = zt[l]
-kl = k['t'][l]
-rl_nextl = r['t'][l:]
-'''
 
 def get_MFA_params(zl, kl, rl_nextl):
     ''' Determine clusters with a GMM and then adjust a Factor Model over each cluster
     zl (ndarray): The lth layer latent variable 
     kl (int): The number of components of the lth layer
-    rl_nextl (1darray): The dimension of the lth layer and (l+1)th layer
+    rl_nextl (1darray): The dimension of the lth layer and (l+1)th layers
     -----------------------------------------------------
     returns (dict): Dict with the parameters of the MFA approximated by GMM + FA. 
     '''
@@ -116,7 +109,6 @@ def get_MFA_params(zl, kl, rl_nextl):
         try:
             fa.fit(zl[indices])
         except LinAlgError:
-            #print(zl[indices])
             raise RuntimeError("Eigenvalues could not converge. It might be due \
                                to the fact that one of the continuous variable \
                             presented no withing-group variation. Check your \
@@ -124,7 +116,6 @@ def get_MFA_params(zl, kl, rl_nextl):
                             and look to repeated values")
                             
         psi[j] = np.diag(fa.get_uniquenesses())
-        #psi[j] = fa.get_uniquenesses()
 
         H[j] = fa.loadings_
         z_nextl[indices] = fa.transform(zl[indices])
@@ -134,14 +125,18 @@ def get_MFA_params(zl, kl, rl_nextl):
     return params
 
 
-'''
-zh_first = z1D
-kh = k['d']
-rh = r['d']
-Lh = L['d']
-'''
-
 def init_head(zh_first, kh, rh, numobs, Lh):
+    ''' Initialise the parameters of each head
+    zh_first ((M^{(l)} x r_l) ndarray): The latent variable of the first head layer
+    kh (list of ints): The number of the components of each layer of the head h
+    kh (list of ints): The dimension of the components of each layer of the head h
+    numobs (int): The number of observations in the dataset
+    Lh (int): The number of layers in the given head.
+    ---------------------------------------------------------------------------
+    returns (tuple of size 5): The estimators of eta, Lambda and Psi for all
+                               layer of each head, the associated latent variables
+                               and the predicted path through the network
+    '''
     zh = [zh_first]
     eta = []
     H = []
@@ -149,7 +144,6 @@ def init_head(zh_first, kh, rh, numobs, Lh):
     paths_pred = []
 
     for l in range(Lh - 1): 
-        #print('l layer of init head is ', l)
         params = get_MFA_params(zh[l], kh[l], rh[l:])
             
         eta.append(params['eta'][..., n_axis])
@@ -162,6 +156,14 @@ def init_head(zh_first, kh, rh, numobs, Lh):
 
 
 def init_junction_layer(r, k, zc, zd):
+    ''' Initialise the parameters of the first layer of the common tail.
+    r (dict of list): The dimensions of each layer of each head and tail
+    k (dict of list): The number of components on each layer of each head and tail
+    zc (list of ndarrays): The latent variables of the continuous head 
+    zd (list of ndarrays): The latent variables of the discrete head 
+    -------------------------------------------------------------------------
+    returns (dict): the initial values of all the estimators of the network
+    '''
     
     # Stack together all the latent variables from both heads  
     last_zcd = np.hstack([zc[-1], zd[-1]])
@@ -178,9 +180,7 @@ def init_junction_layer(r, k, zc, zd):
     for h in ['c', 'd']:
         last_kh = k[h][-1]
         last_zh = zc[-1] if h == 'c' else zd[-1]
-        
-        
-        ###########################################
+                
         not_all_groups = True
 
         max_trials = 100
@@ -191,8 +191,7 @@ def init_junction_layer(r, k, zc, zd):
         #======================================================
         
         while not_all_groups:
-            # If not enough obs per group then the MFA diverge...    
-    
+            # If not enough obs per group then the MFA diverges    
             gmm_h = GaussianMixture(n_components = last_kh)
             s_h = gmm_h.fit_predict(last_zh)
             paths_pred[h] = s_h
@@ -206,17 +205,7 @@ def init_junction_layer(r, k, zc, zd):
             if empty_count_counter >= max_trials:
                 raise RuntimeError('Could not find a GMM init that presents the \
                                    proper number of groups:', last_kh)
-        
-        ###############################################
-        '''
-        # Find groups among each head latent variable
-        gmm_h = GaussianMixture(n_components = last_kh)
-        s_h = gmm_h.fit_predict(last_zh)
-        paths_pred[h] = s_h
-        
-        clusters_found, count = np.unique(s_h, return_counts = True)
-        '''
-        
+                
         assert len(clusters_found) == last_kh
 
         eta_h = []
@@ -224,7 +213,6 @@ def init_junction_layer(r, k, zc, zd):
         psi_h = []
         
         # Fill the parameters belonging to each group
-    
         for j in range(last_kh):
             indices = (s_h == j)
             eta_hj = last_zh[indices].mean(axis = 0, keepdims = True)
@@ -249,22 +237,19 @@ def init_junction_layer(r, k, zc, zd):
         
     return eta, H, psi, paths_pred, zt_first
     
-    
-
 
 def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     ''' Perform dimension reduction into a continuous r dimensional space and determine 
     the init coefficients in that space
     
-    y (numobs x p ndarray): The observations containing categorical variables
-    k (1d array): The number of components of the latent Gaussian mixture layers
-    r (int): The dimension of latent variables
+    y (numobs x p ndarray): The data 
+    k (dict of lists): The number of components of each layer of the network
+    r (int): The dimensions of the components of each layer of the network
     nj (p 1darray): For binary/count data: The maximum values that the variable can take. 
                     For ordinal data: the number of different existing categories for each variable
+                    For categorical data: the number of different existing categories for each variable
     var_distrib (p 1darray): An array containing the types of the variables in y 
-    dim_red_method (str): Choices are 'prince' for MCA, 'umap' of 'tsne'
     seed (None): The random state seed to use for the dimension reduction
-    M (int): The number of MC points to compute     
     ---------------------------------------------------------------------------------------
     returns (dict): All initialisation parameters
     '''
@@ -295,10 +280,10 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
                      check_input=False, engine='auto', random_state = seed)
     z1D = mca.fit_transform(yd.astype(str)).values
         
+    y = y.values   
+    
     # Be careful: The first z^c is the continuous data whether the first 
     # z^d is the MCA transformed data.
-    #z = {'c': [yc], 'd': [z1D]}
-    y = y.values   
     
     #==============================================================
     # Set the shape parameters of each discrete data type
@@ -318,7 +303,6 @@ def dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None):
     nj_ord = nj[var_distrib == 'ordinal']
     nb_ord = len(nj_ord)
     
-    #yc = yc / np.std(yc.astype(np.float), axis = 0, keepdims = True)
     ss = StandardScaler()
     yc = ss.fit_transform(yc)
              

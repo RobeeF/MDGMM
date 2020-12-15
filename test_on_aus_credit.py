@@ -25,8 +25,7 @@ import pandas as pd
 from mdgmm import MDGMM
 from init_params import dim_reduce_init
 from metrics import misc
-from data_preprocessing import gen_categ_as_bin_dataset, \
-        compute_nj
+from data_preprocessing import compute_nj
 
 import autograd.numpy as np
 
@@ -109,7 +108,7 @@ y = y.astype(dtype, copy=True)
 
 n_clusters = 2
 r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
-k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [2], 't': [n_clusters, 1]}
 
 seed = 1
 init_seed = 2
@@ -121,24 +120,13 @@ maxstep = 100
 
 # MCA init
 prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
-m, pred = misc(labels_oh, prince_init['classes'], True) 
-#print(m)
-#print(confusion_matrix(labels_oh, pred))
-#print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
-
-'''
-y = y_np
-init = prince_init
-seed = None
-'''
 
 out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
             maxstep, seed, perform_selec = False)
 m, pred = misc(labels_oh, out['classes'], True) 
 micro = precision_score(labels_oh, pred, average = 'micro')
 macro = precision_score(labels_oh, pred, average = 'macro')
-#print(m)
-#print(confusion_matrix(labels_oh, pred))
+
 print('Silhouette', silhouette_score(dm, pred, metric = 'precomputed'))
 print('Micro', micro)
 print('Macro', macro)
@@ -203,47 +191,6 @@ for l in range(Lt):
         sil = silhouette_score(dm, out['classes'][l], metric = 'precomputed')
         print('Silhouette coefficient is groups is', sil)
         
-
-#=============================================#
-# As a Feature extractor
-#==============================================#
-from prince import FAMD
-from lightgbm import LGBMClassifier
-from sklearn.model_selection import cross_validate
-#**********************************
-# Extract deep features from MDGMM
-#**********************************
-
-r = {'c': [nb_cont], 'd': [3], 't': [2, 1]}
-k = {'c': [1], 'd': [2], 't': [2, 1]}
-
-prince_init = dim_reduce_init(y, n_clusters, k, r, nj, var_distrib, seed = None)
-out = MDGMM(y_np, n_clusters, r, k, prince_init, var_distrib, nj, it, eps,\
-            maxstep, seed, perform_selec = True)
-
-mdgmm_dp = out['z']
-
-#**********************************
-# Extract deep features from FAMD
-#**********************************
-
-famd = FAMD(n_components = 2,\
-    n_iter=3, copy=True,\
-    check_input=True, engine='auto')
-famd_dp = famd.fit_transform(y).values 
-
-#**********************************
-# Fit the LGBM
-#**********************************
-
-lgbm = LGBMClassifier(objective = 'binary')
-mdgmm_fx = cross_validate(lgbm, mdgmm_dp, labels_oh.astype(int), cv = 5, scoring  = 'accuracy')
-print('MDGMM test score', np.mean(mdgmm_fx['test_score']))
-
-lgbm = LGBMClassifier(objective = 'binary')
-famd_fx = cross_validate(lgbm, famd_dp, labels_oh.astype(int), cv = 5, scoring  = 'accuracy')
-print('FAMD test score', np.mean(famd_fx['test_score']))
-
 
 #=========================================================================
 # Performance measure : Finding the best specification for init and DDGMM
@@ -337,6 +284,7 @@ mca_mdgmm_res.groupby('r').std()
 
 mca_mdgmm_res.to_csv(res_folder + '/mca_mdgmm_res_categ_encoded.csv')
 
+
 #============================================
 # MDGMM. Thresholds use: ? and ?
 # Avec rd1 5 ca avait l'air mieux
@@ -348,10 +296,9 @@ res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/aus_credit
 # First find the best architecture 
 numobs = len(y)
 r = {'c': [nb_cont], 'd': [5], 't': [4, 3]}
-k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [3], 't': [n_clusters, 1]}
 
 eps = 1E-05
-it = 2
 maxstep = 100
 it = 3
 
@@ -394,15 +341,14 @@ for i in range(nb_trials):
                                      'macro': np.nan, 'silhouette': np.nan},\
                                      ignore_index=True)
 
-
+    mdgmm_res.to_csv(res_folder + '/mdgmm_res_k2D_categ_encoded_best_sil_identif.csv')
 
 mdgmm_res.mean()
 mdgmm_res.std()
 
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_k1D_categ_encoded_best_sil.csv')
 
-mdgmm_res= pd.read_csv(res_folder + '/mdgmm_res_k1D_categ_encoded_best_sil.csv')
+mdgmm_res= pd.read_csv(res_folder + '/mdgmm_res_k2D_categ_encoded_best_sil_identif.csv')
 
 
 #=======================================================================

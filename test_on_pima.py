@@ -324,7 +324,7 @@ mca_mdgmm_res.to_csv(res_folder + '/mca_mdgmm_res.csv')
 # First find the best architecture 
 numobs = len(y)
 r = {'c': [nb_cont], 'd': [5], 't': [4, 3]}
-k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [3], 't': [n_clusters, 1]}
 
 eps = 1E-05
 it = 3
@@ -374,8 +374,9 @@ for i in range(nb_trials):
 mdgmm_res.mean()
 mdgmm_res.std()
 
+mdgmm_res = pd.read_csv(res_folder + '/mdgmm_k2D_res_categ_encoded_best_sil_identif.csv')
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_categ_encoded_best_sil_identif.csv')
+mdgmm_res.to_csv(res_folder + '/mdgmm_k2D_res_categ_encoded_best_sil_identif.csv')
 
 #=======================================================================
 # Performance measure : Finding the best specification for other algos

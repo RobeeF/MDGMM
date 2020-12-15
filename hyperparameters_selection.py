@@ -7,33 +7,17 @@ Created on Mon Jun  8 09:30:16 2020
 
 import autograd.numpy as np
 
-# To merge with parameter selection
 
-
-# Old one for tictactoe and breast cancer
-def M_growth__(it_nb, r_1L, numobs):
-    #''' Function that controls the growth rate of M through the iterations
-    #it_num (int): The current iteration number
-    #r (list of int): The dimensions of each layer
-    #---------------------------------------------------------------------
-    #returns (1d-array of int): The number of MC points to sample on each layer
-    #'''
-
-    M = {}
-    M['c'] = (5 * it_nb * np.array(r_1L['c'])).astype(int)
-    M['c'][0] = numobs
-    M['d'] = (5 * it_nb * np.array(r_1L['d'])).astype(int)  
-    
-    return M
-
-# Old one for tictactoe and breast cancer
 def M_growth(it_nb, r_1L, numobs):
-    #''' Function that controls the growth rate of M through the iterations
-    #it_num (int): The current iteration number
-    #r (list of int): The dimensions of each layer
-    #---------------------------------------------------------------------
-    #returns (1d-array of int): The number of MC points to sample on each layer
-    #'''
+    ''' 
+    Function that controls the growth rate of M through the iterations
+    it_num (int): The current iteration number
+    r_1L (dict of list): The dimensions of each layer of each head and tail
+    numobs (int): The number of observations of the dataset
+    ---------------------------------------------------------------------
+    returns (dict of lists): The number of MC points to sample on each layer
+                            of each head and tail
+    '''
 
     M = {}
     M['c'] = ((40 / np.log(numobs)) * it_nb * np.sqrt(r_1L['c'])).astype(int)
@@ -42,35 +26,31 @@ def M_growth(it_nb, r_1L, numobs):
     
     return M
 
-def M_growth_new(it_nb, r_1L, numobs):
-    ''' Function that controls the growth rate of M through the iterations
-    it_num (int): The current iteration number
-    r (list of int): The dimensions of each layer
-    ---------------------------------------------------------------------
-    returns (1d-array of int): The number of MC points to sample on each layer
-    '''
-    # Do not increase with the iterations
-    M = {}
-    M['c'] = (20 * np.array(r_1L['c'])).astype(int)
-    M['c'][0] = numobs
-    M['d'] = (20 * np.array(r_1L['d'])).astype(int)
-    
-    return M
     
 def look_for_simpler_network(it_num):
-    ''' Returns whether or not a new architecture of the network have to be 
+    ''' 
+    Returns whether or not a new architecture of the network have to be 
     looking for at the current iteration.
     it_num (int): The current iteration number
     -------------------------------------------------------------------------
     returns (Bool): True if a simpler architecture has to be looking for 
                     False otherwise
     '''
+    
     if it_num in [0, 1, 7, 10]:
         return True
     else:
         return False
     
 def is_min_architecture_reached(k, r, n_clusters):
+    '''
+    k (dict of list): The number of components on each layer of each head and tail
+    r (dict of list): The dimensions of each layer of each head and tail
+    n_clusters (int): The number of clusters to look for in the data
+    ------------------------------------------------------------------------
+    returns (Bool): True if the minimal network architecture has been reached 
+                    False otherwise
+    '''
     
     # Check that common tail is minimal
     first_layer_k_min =  k['t'][0] == n_clusters # geq or eq ?
@@ -105,7 +85,8 @@ def is_min_architecture_reached(k, r, n_clusters):
                 if r[h][l] > Lh + Lt - l:
                     is_head_r_min[h] = False
     
-    are_heads_min = np.all(list(is_head_k_min.values())) & np.all(list(is_head_r_min.values()))
+    are_heads_min = np.all(list(is_head_k_min.values())) \
+                        & np.all(list(is_head_r_min.values()))
     
     is_arch_min = are_heads_min & is_tail_min
         

@@ -126,13 +126,6 @@ def logsumexp(a, axis=None, keepdims=False):
     a_max = np.where(~np.isfinite(a_max), 0, a_max)
     assert np.sum(~np.isfinite(a_max)) == 0
     
-    '''
-    if a_max.ndim > 0:
-        a_max[~np.isfinite(a_max)] = 0
-    elif not np.isfinite(a_max):
-        a_max = 0
-    '''
-
     tmp = np.exp(a - a_max)
 
     # suppress warnings about log of zero
@@ -147,8 +140,7 @@ def logsumexp(a, axis=None, keepdims=False):
     return out
 
 def softmax_(x, axis=None):
-    r"""
-    Softmax function from the scipy package
+    r""" Softmax function from the scipy package
     The softmax function transforms each element of a collection by
     computing the exponential of each element divided by the sum of the
     exponentials of all the elements. That is, if `x` is a one-dimensional

@@ -16,10 +16,14 @@ import warnings
 def compute_z_moments(w_s, eta_old, H_old, psi_old):
     ''' Compute the first moment and the variance of the latent variable 
     w_s (list of length s1): The path probabilities for all s in S1
-    mu_s (list of nd-arrays): The means of the Gaussians starting at each layer
-    sigma_s (list of nd-arrays): The covariance matrices of the Gaussians starting at each layer
+    eta_old (list of nb_layers elements of shape (K_l x r_{l-1}, 1)): eta  
+                        estimators of the previous iteration for each layer
+    H_old (list of nb_layers elements of shape (K_l x r_l-1, r_l)): Lambda 
+                        estimators of the previous iteration for each layer
+    psi_old (list of nb_layers elements of shape (K_l x r_l-1, r_l-1)): Psi 
+                        estimators of the previous iteration for each layer
     -------------------------------------------------------------------------
-    returns (tuple of length 2): E(z^{(1)}) and Var(z^{(1)})  
+    returns (tuple of length 2): E(z^{(l)}) and Var(z^{(l)})  
     '''
     
     k = [eta.shape[0] for eta in eta_old]
@@ -55,19 +59,21 @@ def compute_z_moments(w_s, eta_old, H_old, psi_old):
 
     return Ez, AT
 
-
+# Function name might be improved:
 def identifiable_estim_DDGMM(eta_old, H_old, psi_old, Ez, AT):
-    ''' Enforce identifiability conditions for DGMM estimators
+    ''' Ensure that the latent variables are centered reduced 
+    (1st DGMM identifiability condition)
+    
     eta_old (list of nb_layers elements of shape (K_l x r_{l-1}, 1)): mu  
                         estimators of the previous iteration for each layer
     H_old (list of nb_layers elements of shape (K_l x r_l-1, r_l)): Lambda 
                         estimators of the previous iteration for each layer
-    psi (list of nb_layers elements of shape (K_l x r_l-1, r_l-1)): Psi 
+    psi_old (list of nb_layers elements of shape (K_l x r_l-1, r_l-1)): Psi 
                         estimators of the previous iteration for each layer
-    Ez1 ((1, k1, 1) ndarray): E(z^{(1)})
-    AT ((1, k1, k1) ndarray): Var(z^{(1)})^{-1/2 T}
+    Ez1 (list of (k_l, r_l) ndarray): E(z^{(l)})
+    AT (list of (k_l, k_l) ndarray): Var(z^{(l)})^{-1/2 T}
     -------------------------------------------------------------------------
-    returns (tuple of length 3): "identifiable" esimators of eta, Lambda and Psi
+    returns (tuple of length 3): "DDGMM identifiable" estimators of eta, Lambda and Psi
     ''' 
 
 
@@ -88,21 +94,19 @@ def identifiable_estim_DDGMM(eta_old, H_old, psi_old, Ez, AT):
     return eta_new, H_new, psi_new
 
 
-'''
-H_old = H_c
-psi_old = psi_c
-'''
-
 def diagonal_cond(H_old, psi_old):
-    ''' Ensure that Lambda^T Psi^{-1} Lambda is diagonal
+    ''' Ensure that Lambda^T Psi^{-1} Lambda is diagonal 
+    (2nd DGMM identifiability condition)
+    
     H_old (list of nb_layers elements of shape (K_l x r_l-1, r_l)): The previous
                                         iteration values of Lambda estimators
     psi_old (list of ndarrays): The previous iteration values of Psi estimators
                     (list of nb_layers elements of shape (K_l x r_l-1, r_l-1))
     ------------------------------------------------------------------------
     returns (list of nb_layers elements of shape (K_l x r_l-1, r_l)): The 
-                                                "identifiable" H estimator
+                                                "DGMM identifiable" H estimator
     '''
+    
     L = len(H_old)
     
     H = []
@@ -114,7 +118,22 @@ def diagonal_cond(H_old, psi_old):
 
 
 def head_tail_identifiability(eta_old, H_old, psi_old, w_s):
-    with warnings.catch_warnings(record=True) as w:
+    '''
+    Applies the two identifiability conditions to each head layers of the network
+    eta_old (list of nb_layers elements of shape (K_l x r_{l-1}, 1)): mu  
+                        estimators of the previous iteration for each layer
+    H_old (list of nb_layers elements of shape (K_l x r_l-1, r_l)): Lambda 
+                        estimators of the previous iteration for each layer
+    psi_old (list of nb_layers elements of shape (K_l x r_l-1, r_l-1)): Psi 
+                        estimators of the previous iteration for each layer
+    w_s (list of length s1): The path probabilities for all s in S^h
+    -------------------------------------------------------------------------
+    returns (tuple of length 4): "identifiable" estimators of eta, Lambda and Psi
+                                and the covariance matrices of each layer latent 
+                                variable
+    '''
+    
+    with warnings.catch_warnings(record=True):
         warnings.simplefilter("default")
 
         H = diagonal_cond(H_old, psi_old)
@@ -123,21 +142,26 @@ def head_tail_identifiability(eta_old, H_old, psi_old, w_s):
         
     return eta, H, psi, AT
 
-'''
-eta_d_old = deepcopy(eta_d)
-H_d_old = deepcopy(H_d)
-psi_d_old = deepcopy(psi_d)
-
-eta_c_old = deepcopy(eta_c)
-H_c_old = deepcopy(H_c)
-psi_c_old = deepcopy(psi_c)
-
-'''
-
-
-def network_identifiability(eta_d_old, H_d_old, psi_d_old, eta_c_old, H_c_old, psi_c_old,\
-                            w_s_c, w_s_d, w_s_t, bar_L):
-    ''' Ensure that the network is identified '''
+def network_identifiability(eta_d_old, H_d_old, psi_d_old, eta_c_old, H_c_old, 
+                            psi_c_old, w_s_c, w_s_d, w_s_t, bar_L):
+    ''' Applies the two identifiability conditions on the whole network
+    eta_*_old (list of nb_layers elements of shape (K_l x r_{l-1}, 1)): mu  
+                        estimators of the previous iteration for each layer 
+                        of the given head *
+    H_*_old (list of nb_layers elements of shape (K_l x r_l-1, r_l)): Lambda 
+                        estimators of the previous iteration for each layer
+                        of the given head *
+    psi_*_old (list of nb_layers elements of shape (K_l x r_l-1, r_l-1)): Psi 
+                        estimators of the previous iteration for each layer 
+                        of the given head *
+    w_s_* (list of length s1): The path probabilities for all s in S^h 
+                        of the given head or tail *
+    bar_L (dict): The index of the last head layer for both head
+    --------------------------------------------------------------------------
+    returns (tuple of length 8): "identifiable" estimators of eta, Lambda and Psi
+                                and the covariance matrices of each layer latent 
+                                variable for both heads.
+    '''
     
     eta_d, H_d, psi_d, AT_d = head_tail_identifiability(eta_d_old, H_d_old, psi_d_old, w_s_d)
     eta_c, H_c, psi_c, AT_c = head_tail_identifiability(eta_c_old, H_c_old, psi_c_old, w_s_c)

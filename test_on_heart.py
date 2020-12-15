@@ -353,7 +353,7 @@ res_folder = 'C:/Users/rfuchs/Documents/These/Experiences/mixed_algos/heart'
 # First find the best architecture 
 numobs = len(y)
 r = {'c': [nb_cont], 'd': [5], 't': [4, 3]}
-k = {'c': [1], 'd': [1], 't': [n_clusters, 1]}
+k = {'c': [1], 'd': [3], 't': [n_clusters, 1]}
 
 eps = 1E-05
 it = 3
@@ -395,16 +395,17 @@ for i in range(nb_trials):
         mdgmm_res = mdgmm_res.append({'it_id': i + 1, 'micro': np.nan,\
                                      'macro': np.nan, 'silhouette': np.nan},\
                                      ignore_index=True)
+            
 
-
+    #mdgmm_res.to_csv(res_folder + '/mdgmm_res_k2D_autoselec_continuous_scaled_categ_encoded_best_sil_identif.csv')
 
 mdgmm_res.mean()
-
 mdgmm_res.std()
 
-mdgmm_res.to_csv(res_folder + '/mdgmm_res_kd1_autoselec_continuous_scaled_categ_encoded_best_sil_identif.csv')
+mdgmm_res = pd.read_csv(res_folder + '/mdgmm_res_k2D_autoselec_continuous_scaled_categ_encoded.csv')
 
-mdgmm_res = pd.read_csv(res_folder + '/mdgmm_res_kd1_autoselec_continuous_scaled_categ_encoded.csv')
+
+mdgmm_res.to_csv(res_folder + '/mdgmm_res_k2D_autoselec_continuous_scaled_categ_encoded.csv')
 
 #=======================================================================
 # Performance measure : Finding the best specification for other algos

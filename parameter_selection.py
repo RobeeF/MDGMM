@@ -6,8 +6,6 @@ Created on Tue Jun  2 15:39:05 2020
 """
 
 
-# To merge with hyper-parameter selection
-
 from copy import deepcopy
 from utilities import isnumeric
 from sklearn.decomposition import PCA
@@ -24,21 +22,16 @@ warnings.simplefilter('default')
 
 import autograd.numpy as np
 
-'''
-zl1_ys = zl1_ys_d
-w_s = w_s_d
-
-'''
-
 def rl1_selection(y_bin, y_ord, y_categ, zl1_ys, w_s, Ld):
-    ''' 
-        Selects the number of factor on the first latent discrete layer 
-        <Add arguments description>
-        Hyperparameters:
-        PROP_ZERO_THRESHOLD : The limit proportion of time a coefficient has 
-        been found to be zero before this dimension is deleted
-        PVALUE_THRESHOLD: The p-value threshold to zero a coefficient in ordinal
-        logistic regression 
+    ''' Selects the number of factors on the first latent discrete layer 
+    y_bin (n x p_bin ndarray): The binary and count data matrix
+    y_ord (n x p_ord ndarray): The ordinal data matrix
+    y_categ (n x p_categ ndarray): The categorical data matrix
+    zl1_ys (k_1D x r_1D ndarray): The first layer latent variables
+    w_s (list): The path probabilities starting from the first discrete head layer
+    Ld (list of int):  The number of layers on the discrete head   
+    ------------------------------------------------------------------
+    return (list of int): The dimensions to keep 
     '''
 
     M0 = zl1_ys.shape[0]
@@ -74,14 +67,12 @@ def rl1_selection(y_bin, y_ord, y_categ, zl1_ys, w_s, Ld):
             # Put all the M0 points in a series
             X = z.flatten(order = 'C').reshape((-1, r0), order = 'C')
 
-            #X1 = z.flatten(order = 'C').reshape((M0 * numobs, r0), order = 'C')
             y_repeat = np.repeat(yj, M0).astype(int) # Repeat rather than tile to check
             
             lr = LogisticRegression(penalty = 'l1', solver = 'saga')
             lr.fit(X, y_repeat)
             zero_coef_mask += (lr.coef_[0] == 0) * w_s[s]
     
-    #print(zero_coef_mask)
     # Detemine the dimensions that are weakest for Ordinal variables
     for j in range(nb_ord):
         for s in range(S0):
@@ -125,16 +116,16 @@ def rl1_selection(y_bin, y_ord, y_categ, zl1_ys, w_s, Ld):
     return dims_to_keep
 
 
-'''
-rl1_select = rl1_select_c
-z2_z1s = z2_z1s_c
-Lt = L['t']
-'''
-
 def other_r_selection(rl1_select, z2_z1s, Lt, head = True,\
                       mode_multi = False):
-    '''
-        Chose the meaningful dimensions from the second layer of each head/tail
+    ''' Chose the meaningful dimensions from the second layer of each head h/tail
+    rl1_select (list): The dimension kept over the first layer of head/tail
+    z2_z1s (list of ndarrays): z^{(l + 1)}| z^{(l)}, s
+    Lt (list of int):  The number of layers on the common tail   
+    head (Bool): Whether to determine head (True) or tail layers (False) dimensions
+    mode_multi (Bool): Whether the algorithm is in multi_clus mode
+    --------------------------------------------------------------------------
+    return (list of int): The dimensions to keep from the second layer of the head/tail
     '''
     
     S = [zz.shape[2] for zz in z2_z1s] + [1] 
@@ -223,57 +214,42 @@ def other_r_selection(rl1_select, z2_z1s, Lt, head = True,\
     return dims_to_keep, dims_corr
 
 
-'''
-last_r_select_d = other_r_select_d[-1]
-last_r_select_c = other_r_select_c[-1]
-score_d = dims_score_d[-1]
-score_c = dims_score_c[-1]
-mode_multi = False
-
-'''
-
 def tail_r_selection(last_r_select_d, last_r_select_c, score_d, score_c):
-    ''' Select the last dimensions of the tail layers'''
+    ''' Select the last dimensions of the tail layers
+    last_r_select_d (list): The dimension selected on the last discrete layer
+    last_r_select_c (list): The dimension selected on the last continuous layer
+    score_d (list): The correlation between the first PCA axis of the first common 
+                    tail layer and the last discrete layer 
+    score_d (list): The correlation between the first PCA axis of the first common 
+                    tail layer and the last continuous layer 
+    --------------------------------------------------------------------------
+    returns (list): The dimension kept of the first common tail layer
+    '''
     
     avg_score = (score_c + score_d) / 2
     nb_dims_maxs = min(len(last_r_select_c), len(last_r_select_d)) # Keep it identifiable
     
-    dims_kept = np.argsort(- avg_score)[:nb_dims_maxs] # -avg_score: In descending order
-    
-    
-    # Keep the dimension that have been chosen at least by one head
-    #dims_kept = list(set(np.concatenate([last_r_select_c, last_r_select_d]))) 
-    
-    # Mode multi :
-    # On doit avoir au minimum rt1 = 3 pour 3 couches, = 2 pour 2 couches etc...
-    # Ajouter argument nb_layers_to_keep
-    
-    
-    
-    '''
-    # If there too many dimensions have been deleted, keep the more informative    
-    # Need at least rt0 = 2 to have a defined tail
-    min_tail_dim = 2 # Useless as this case is treated above
-    if len(dims_kept) < min_tail_dim:
-        raise RuntimeError('Impossible case...')
-        avg_score = np.mean([score_c, score_d], axis = 0)
-        dims_kept = np.argsort(- avg_score)[:min_tail_dim] # -avg_score: In descending order
-    '''
-        
+    dims_kept = np.argsort(- avg_score)[:nb_dims_maxs] # -avg_score: In descending order        
     dims_kept = np.sort(dims_kept)
 
     return dims_kept
 
-'''
-z2_z1s_t = z2_z1s_c[bar_L['c']:]
-z2_z1s_d = z2_z1s_d[:bar_L['d']]
-z2_z1s_c = z2_z1s_c[:bar_L['c']]
 
-'''
-
-def r_select(y_bin, y_ord, y_categ, yc, zl1_ys_d, z2_z1s_d, w_s_d, z2_z1s_c, z2_z1s_t, n_clusters):
-    ''' Automatic choice of dimension of each layer components '''
-    # TO DO: allow the head layers to be deleted
+def r_select(y_bin, y_ord, y_categ, yc, zl1_ys_d, z2_z1s_d, w_s_d,\
+             z2_z1s_c, z2_z1s_t, n_clusters):
+    ''' Automatic choice of dimension of all layer components 
+    y_bin (numobs x nb_bin nd-array): The binary/count data
+    y_ord (numobs x nb_ord nd-array): The ordinal data
+    y_categ (numobs x nb_categ nd-array): The categorical data
+    yc (numobs x nb_categ nd-array): The continuous data
+    zl1_ys_d (ndarray): The latent variable of the first discrete layer
+    z2_z1s_* (list of ndarray): z^{l+1} | z^{l}, s, Theta for all (l,s) 
+                                of the * head    
+    w_s_d (list): The path probabilities for all s in [1,S^D]
+    n_clusters (int): The number of clusters to look for in the data
+    --------------------------------------------------------------------------
+    returns (dict): The dimensions kept for all the layers of the network
+    '''
 
     mode_multi = False
 
@@ -315,9 +291,16 @@ def r_select(y_bin, y_ord, y_categ, yc, zl1_ys_d, z2_z1s_d, w_s_d, z2_z1s_c, z2_
 
     
 def k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer, n_clusters):
-    ''' Automatic choice of the number of components by layer '''
+    ''' Automatic choice of the number of components by layer 
+    w_s_* (list): The path probabilities for all s in [1,S^*]
+    k (dict): The number of component on each layer
+    new_Lt (int): The selected number of layers on the common tail.
+    clustering_layer (int): The index of the clustering layer
+    n_clusters (int): The number of clusters to look for in the data
+    --------------------------------------------------------------------------
+    returns (dict): The components kept for all the layers of the network
+    '''
     
-    #n_clusters = k['t'][clustering_layer]
     mode_auto = False
     mode_multi = False
 
@@ -394,7 +377,16 @@ def k_select(w_s_c, w_s_d, w_s_t, k, new_Lt, clustering_layer, n_clusters):
 
 
 def check_if_selection(r_to_keep, r, k_to_keep, k, L, new_Lt):
-    ''' Check if the architecture has to be changed '''
+    ''' Check if the architecture has changed during the selection procedure
+    r_to_keep (dict): The dimensions selected in the network
+    r (dict): The original dimensions of the network layers
+    k_to_keep (dict): The components selected in the network
+    k (dict): The original number of component on each layer
+    L (dict): The number of layers in the networks 
+    new_Lt (int): The selected number of layers on the common tail.
+    --------------------------------------------------------------------------
+    returns (Bool): Whether or not the procedure has selected a new architecture
+    '''
     
     is_L_unchanged = (L['t'] == new_Lt)
                 
@@ -412,16 +404,26 @@ def check_if_selection(r_to_keep, r, k_to_keep, k, L, new_Lt):
     
     return is_selection
 
-'''
-eta_c_ = eta_c
-H_c_ = H_c
-psi_c_ = psi_c
-eta_d_ = eta_d
-H_d_ = H_d
-psi_d_ = psi_d
-'''
 
-def dgmm_coeff_selection(eta_c_, H_c_, psi_c_, eta_d_, H_d_, psi_d_, L, r_to_keep, k_to_keep):
+def dgmm_coeff_selection(eta_c_, H_c_, psi_c_, eta_d_, H_d_, psi_d_,\
+                         L, r_to_keep, k_to_keep):
+    ''' Utility to update the selected components and dimensions of the network
+    eta_*_ (list of nb_layers elements of shape (K_l x r_{l-1}, 1)): eta  
+                        estimators at the end of the current iteration for 
+                        each layer of head *
+    H_*_ (list of nb_layers elements of shape (K_l x r_l-1, r_l)): Lambda 
+                        estimators at the end of the current iteration for 
+                        each layer of head *
+    psi_*_ (list of nb_layers elements of shape (K_l x r_l-1, r_l-1)): Psi 
+                        estimators at the end of the current iteration for 
+                        each layer of head *
+    L (dict): The number of layers in the networks 
+    r_to_keep (dict): The dimensions selected in the network
+    k_to_keep (dict): The components selected in the network
+    --------------------------------------------------------------------------
+    returns (tuple of size 6): the eta, Lambda and Psi estimators of all 
+                                network layers
+    '''
      
     #===============================================================
     # Computation of eta
@@ -463,19 +465,9 @@ def dgmm_coeff_selection(eta_c_, H_c_, psi_c_, eta_d_, H_d_, psi_d_, L, r_to_kee
     H_d_new = [H_d_new[l][:, r_to_keep['d'][l]] for l in range(L['d'])]
     
     if L['d'] > 1:
-        try:
-            H_d_new = [H_d_new[l][:, :, r_to_keep['d'][l + 1]] for l in range(L['d'])]
-        except:
-            for l in range(L['d']):
-                print(l)
-                H_d_new[l][:, :, r_to_keep['d'][l + 1]]
-            print(len(H_d_new))
-            print(r_to_keep['d'])
-            print(L['d'])
-            raise RuntimeError('Something wrong with H')
-    
+        H_d_new = [H_d_new[l][:, :, r_to_keep['d'][l + 1]] for l in range(L['d'])]
+        
     # For the component between the last head layer and the first tail layer
-    # To check
     H_d_new[-1] = H_d_new[-1][:, :, r_to_keep['t'][0]] 
  
     # Common tail
@@ -510,7 +502,21 @@ def dgmm_coeff_selection(eta_c_, H_c_, psi_c_, eta_d_, H_d_, psi_d_, L, r_to_kee
 
 
 def gllvm_coeff_selection(lambda_bin_, lambda_ord_, lambda_categ_, r, r_to_keep):
-    ''' Select the relevent gllvm coefficients '''
+    ''' Utility to update the selected components and dimensions of the 
+        GLLVM coefficients
+        
+    lambda_bin_ (list of nb_bin x (nj_bin + r1) elements): The binomial coefficients
+                                                    at the end of the current iteration
+    lambda_ord_ (list of nb_ord ndarrays): The ordinal coefficients
+                                                    at the end of the current iteration
+    lambda_categ_ (list of nb_ord ndarrays): The ordinal coefficients
+                                                    at the end of the current iteration
+    r (dict): The original dimensions of the network layers
+    r_to_keep (dict): The dimensions selected in the network
+    --------------------------------------------------------------------------
+    returns (tuple of size 3): the lambda_bin, lambda_ord and lambda_categ estimators 
+                                of the first discrete head layer
+    '''
     
     nb_bin = len(lambda_bin_)
     nb_ord = len(lambda_ord_)
@@ -546,12 +552,16 @@ def gllvm_coeff_selection(lambda_bin_, lambda_ord_, lambda_categ_, r, r_to_keep)
             
     return lambda_bin, lambda_ord, lambda_categ
 
-'''
-w_s_c_ = w_s_c
-w_s_d_ = w_s_d
-'''
 
 def path_proba_selection(w_s_c_, w_s_d_, k, k_to_keep, new_Lt):
+    ''' Utility to update the path probabilities after the selection
+    w_s_* (list): The path probabilities starting from the * head
+    k (dict): The original number of component on each layer
+    k_to_keep (dict): The components selected in the network
+    new_Lt (int): The selected number of layers on the common tail.
+    --------------------------------------------------------------------------
+    returns (tuple of size 2): The paths probabilities starting from each head
+    '''
     
     # Deal with both heads
     w = {'d':  w_s_d_.reshape(*np.concatenate([k['d'], k['t']]), order = 'C'),\
@@ -565,9 +575,7 @@ def path_proba_selection(w_s_c_, w_s_d_, k, k_to_keep, new_Lt):
         assert (len(k_to_keep_ht) == new_Lh)
         
         new_k_idx_grid = np.ix_(*k_to_keep_ht)
-        
-        #new_k_idx_grid = np.ix_(*k_to_keep[h][:new_Lt])
-        
+                
         # If layer deletion, sum the last components of the paths
         # Not checked
         if original_Lh > new_Lh: 
@@ -575,7 +583,8 @@ def path_proba_selection(w_s_c_, w_s_d_, k, k_to_keep, new_Lt):
             w_s = w[h][new_k_idx_grid].sum(deleted_dims).flatten(order = 'C')
         else:
             w_s = w[h][new_k_idx_grid].flatten(order = 'C')
-    
+        
+        # Renormalization
         w_s /= w_s.sum()
         w[h] = w_s
         

@@ -7,7 +7,6 @@ Created on Wed Mar  4 19:26:07 2020
 
 from copy import deepcopy
 import autograd.numpy as np
-from mpl_toolkits.mplot3d import Axes3D
 
 from autograd.numpy.linalg import pinv
 from autograd.numpy import newaxis as n_axis
@@ -160,7 +159,12 @@ import matplotlib.pyplot as plt
 
 
 def plot_2d(zl, classes):
-    ''' Plot the 2d representation of the data '''
+    ''' Plot a representation of 2D latent variables 
+    zl (numobs, M^{(l)} x r_l ndarray): The latent variable of layer l
+    classes (numobs x n_clusters ndarray): The predicted or ground truth labels
+    ---------------------------------------------------------------------------
+    returns (None): The plot of the latent variables colorized by class
+    '''
     
     n_clusters = len(np.unique(classes))
 
@@ -184,7 +188,12 @@ def plot_2d(zl, classes):
     plt.show()
 
 def plot_3d(zl, classes):
-    ''' Plot the 3d latent space representation of the data '''
+    ''' Plot a representation of 3D latent variables 
+    zl (numobs, M^{(l)} x r_l ndarray): The latent variable of layer l
+    classes (numobs x n_clusters ndarray): The predicted or ground truth labels
+    ---------------------------------------------------------------------------
+    returns (None): The plot of the latent variables colorized by class 
+    '''
     
     n_clusters = len(np.unique(classes))
     colors = ['red', 'green', 'blue', 'silver', 'purple', 'black',\
@@ -212,7 +221,6 @@ def plot_3d(zl, classes):
     ax.set_xlabel('Latent dimension 1', fontweight ='bold')  
     ax.set_ylabel('Latent dimension 2', fontweight ='bold')  
     ax.set_zlabel('Latent dimension 3', fontweight ='bold') 
-    #fig.colorbar(sctt, ax = ax, shrink = 0.5, aspect = 5) 
       
     # show plot 
     plt.show() 
@@ -223,6 +231,12 @@ def plot_3d(zl, classes):
    
 
 def isnumeric(var):
+    ''' Check if a variable is numeric
+    var (int, str, float etc.): The variable whom type has to be tested
+    ---------------------------------------------------------------------------
+    returns (Bool): Whether the variable is of numeric type (True) or not (False)    
+    '''
+    
     is_num = False
     try:
         int(var)
@@ -232,6 +246,12 @@ def isnumeric(var):
     return is_num
 
 def asnumeric(lst):
+    ''' Tries to convert all the elements of a list into numeric elements
+    lst (list): The list of elements to convert
+    ---------------------------------------------------------------------------
+    returns (list): The converted list  
+    '''
+    
     try:
         lst = [int(el) for el in lst]
     except:
@@ -239,6 +259,13 @@ def asnumeric(lst):
     return lst
 
 def check_inputs(k, r):
+    ''' Check if the values of (k,r) specified to launch the algorithm are suited
+    if not raise an error
+    k (dict): The original number of component on each layer
+    r (dict): The original dimensions of the network layers
+    ---------------------------------------------------------------------------
+    returns (None): Does not return anything if the values are well suited
+    '''
     
     # Check k and r are dict
     if not(isinstance(k, dict)):
@@ -282,6 +309,14 @@ def check_inputs(k, r):
 ###############################################################################
                 
 def dispatch_dgmm_init(init):
+    ''' Dispatch the initial values of eta, Lambda and Psi between the associated
+    variables
+    
+    init(dict): The dict of the initial values
+    --------------------------------------------------------------------------
+    returns (tuple of size 6): the eta, Lambda and Psi estimators of all 
+                                network layers
+    '''
     eta_c = deepcopy(init['c']['eta'])
     eta_d = deepcopy(init['d']['eta'])
 
@@ -294,6 +329,14 @@ def dispatch_dgmm_init(init):
     return eta_c, eta_d, H_c, H_d, psi_c, psi_d
 
 def dispatch_gllvm_init(init):
+    ''' Dispatch the initial values of lambda_bin, lambda_ord and lambda_categ
+    between the associated variables
+    
+    init(dict): The dict of the initial values
+    --------------------------------------------------------------------------
+    returns (tuple of size 3): the lambda_bin, lambda_ord and lambda_categ estimators 
+                                of the first discrete head layer
+    '''
     lambda_bin = deepcopy(init['lambda_bin'])
     lambda_ord = deepcopy(init['lambda_ord'])
     lambda_categ = deepcopy(init['lambda_categ'])
@@ -301,11 +344,26 @@ def dispatch_gllvm_init(init):
     return lambda_bin, lambda_ord, lambda_categ
 
 def dispatch_paths_init(init):
+    ''' Dispatch the initial values of w_s_*, the paths probabilities starting 
+    from head * between the associated variables
+    
+    init(dict): The dict of the initial values
+    --------------------------------------------------------------------------
+    returns (tuple of size 2): The paths probabilities starting from each head
+    '''
     w_s_c = deepcopy(init['c']['w_s']) 
     w_s_d = deepcopy(init['d']['w_s'])
     return w_s_c, w_s_d
 
 def compute_S_1L(L_1L, k_1L, k):
+    ''' Compute the number of paths starting from each head and tail of the 
+    network.
+    L_1L (dict): The number of layers where the lists include the heads and the tail layers
+    k_1L (list of int): The number of component on each layer including the common layers
+    k (dict): The original number of component on each layer
+    --------------------------------------------------------------------------
+    returns (dict): The number of paths starting from each head and tail       
+    '''
     # Paths of both (heads+tail) and tail
     S1cL = [np.prod(k_1L['c'][l:]) for l in range(L_1L['c'] + 1)]
     S1dL = [np.prod(k_1L['d'][l:]) for l in range(L_1L['d'])]
@@ -314,13 +372,21 @@ def compute_S_1L(L_1L, k_1L, k):
     
 
 def nb_comps_and_layers(k):
+    ''' Compute the number of components and layers starting from each head and
+    tail of the network.
+
+    k (dict): The original number of component on each layer
+    --------------------------------------------------------------------------
+    returns (tuple of size 5): The number of components and layers in the network       
+    '''
     k_1L = {'c': k['c'] + k['t'], 'd': k['d'] + k['t'], 't': k['t']}
     
     # Number of hidden layers of both (heads + tail) and tail
     L_1L = {'c': len(k['c']) + len(k['t']) - 1, 'd': len(k['d']) + len(k['t']),\
             't': len(k['t'])}
     L = {'c': len(k['c']) - 1, 'd': len(k['d']), 't': len(k['t'])}
-    bar_L = {'c': len(k['c']), 'd': len(k['d'])}
+    # Index of the first tail layer starting from head h
+    bar_L = {'c': len(k['c']), 'd': len(k['d'])} 
 
     S_1L = compute_S_1L(L_1L, k_1L, k)
     return k_1L, L_1L, L, bar_L, S_1L
